@@ -1,0 +1,30 @@
+[project]
+name = "concert-radar"
+version = "0.1.0"
+description = "Find upcoming concerts in Portugal and Spain for every artist in your Spotify playlists."
+readme = "README.md"
+authors = [
+    { name = "João Lages" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "pydantic>=2.14.2",
+    "spotipy>=2.26.0",
+]
+
+[project.scripts]
+concert-radar = "concert_radar.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9.17,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.2.0",
+    "ruff>=0.17.3",
+]

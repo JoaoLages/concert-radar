@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concert Radar</title>
+<style>
+  :root {
+    --bg: #fafaf9; --fg: #1c1917; --muted: #78716c; --line: #e7e5e4;
+    --accent: #c2410c; --chip: #f5f5f4; --new-bg: #ffedd5; --new-fg: #9a3412;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917; --fg: #f5f5f4; --muted: #a8a29e; --line: #44403c;
+      --accent: #fb923c; --chip: #292524; --new-bg: #431407; --new-fg: #fdba74;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .filters button, .filters input { font: inherit; border: 1px solid var(--line); background: var(--chip);
+         color: var(--fg); border-radius: 999px; padding: 6px 14px; }
+  .filters input { flex: 1 1 180px; border-radius: 8px; }
+  .filters button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+       margin: 28px 0 6px; }
+  .show { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 10px 0;
+          border-top: 1px solid var(--line); }
+  .date { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .date b { display: block; color: var(--fg); font-size: 18px; }
+  .artist { font-weight: 600; }
+  .new { background: var(--new-bg); color: var(--new-fg); font-size: 11px; font-weight: 600;
+         border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+  .where { color: var(--muted); }
+  .links a { color: var(--accent); margin-right: 10px; font-size: 13px; }
+  .empty { color: var(--muted); padding: 24px 0; }
+  footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  footer .down { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Concert Radar</h1>
+  <p class="sub">{{ shows | length }} upcoming shows in Portugal and Spain for {{ artist_count }} artists in my Spotify playlists. Updated {{ today.isoformat() }}.</p>
+  <div class="filters">
+    <button data-country="" aria-pressed="true">All</button>
+    {% for country in countries %}<button data-country="{{ country.value }}" aria-pressed="false">{{ country.name.title() }}</button>
+    {% endfor %}<button data-new aria-pressed="false">New this week</button>
+    <input type="search" placeholder="Search artist, venue or city" aria-label="Search">
+  </div>
+  {% set ns = namespace(month=none) %}
+  {% for show in shows %}
+    {% set month = show.starts_on.strftime("%B %Y") %}
+    {% set is_new = (today - show.first_seen).days < new_days %}
+    {% if month != ns.month %}<h2>{{ month }}</h2>{% set ns.month = month %}{% endif %}
+    <div class="show" data-country="{{ show.country.value }}" data-new="{{ is_new }}"
+         data-text="{{ (show.artist ~ ' ' ~ show.venue ~ ' ' ~ show.city) | lower }}">
+      <div class="date"><b>{{ show.starts_on.day }}</b>{{ show.starts_on.strftime("%a") }}</div>
+      <div>
+        <span class="artist">{{ show.artist }}</span>{% if is_new %}<span class="new">NEW</span>{% endif %}
+        <div class="where">{{ show.venue }}{% if show.city %}, {{ show.city }}{% endif %} · {{ show.country.name.title() }}</div>
+        <div class="links">{% for source, url in show.links.items() %}<a href="{{ url }}" rel="noopener">{{ source.value }}</a>{% endfor %}</div>
+      </div>
+    </div>
+  {% else %}
+    <p class="empty">No upcoming shows found for any playlist artist.</p>
+  {% endfor %}
+  <p class="empty" id="no-results" hidden>No shows match these filters.</p>
+  <footer>Sources:
+    {% for source in sources %}{% set worked = last_worked.get(source) %}
+    <span class="{{ 'ok' if worked == today else 'down' }}">{{ source.value }}
+      {% if worked == today %}✓{% elif worked %}✗ last worked {{ worked.strftime("%-d %b") }}{% else %}✗ never worked{% endif %}</span>{% if not loop.last %} · {% endif %}
+    {% endfor %}
+  </footer>
+</main>
+<script>
+  const buttons = document.querySelectorAll(".filters button");
+  const search = document.querySelector(".filters input");
+  const state = { country: "", onlyNew: false };
+  function apply() {
+    const query = search.value.trim().toLowerCase();
+    let visible = 0;
+    document.querySelectorAll(".show").forEach(row => {
+      const show = (!state.country || row.dataset.country === state.country)
+        && (!state.onlyNew || row.dataset.new === "True")
+        && (!query || row.dataset.text.includes(query));
+      row.hidden = !show;
+      visible += show;
+    });
+    document.querySelectorAll("h2").forEach(h => {
+      let next = h.nextElementSibling, any = false;
+      while (next && next.tagName !== "H2") { if (next.classList.contains("show") && !next.hidden) any = true; next = next.nextElementSibling; }
+      h.hidden = !any;
+    });
+    document.getElementById("no-results").hidden = visible > 0 || !document.querySelector(".show");
+  }
+  buttons.forEach(b => b.addEventListener("click", () => {
+    if (b.hasAttribute("data-new")) { state.onlyNew = !state.onlyNew; b.setAttribute("aria-pressed", state.onlyNew); }
+    else {
+      state.country = b.dataset.country;
+      buttons.forEach(o => { if (!o.hasAttribute("data-new")) o.setAttribute("aria-pressed", o === b); });
+    }
+    apply();
+  }));
+  search.addEventListener("input", apply);
+</script>
+</body>
+</html>
