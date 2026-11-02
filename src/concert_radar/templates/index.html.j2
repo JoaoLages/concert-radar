@@ -51,6 +51,15 @@
          border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
   .where, .count { color: var(--muted); }
   .links a { color: var(--accent); margin-right: 10px; font-size: 13px; }
+  .months { position: sticky; top: 0; z-index: 1; background: var(--bg); display: flex; gap: 6px;
+            overflow-x: auto; padding: 8px 0; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+  .months a { flex: none; font-size: 13px; color: var(--fg); text-decoration: none; border: 1px solid var(--line);
+              background: var(--chip); border-radius: 999px; padding: 3px 10px; }
+  h2 { scroll-margin-top: 52px; }
+  .unfollow { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--line);
+              border-radius: 999px; padding: 0 8px; margin-left: 8px; cursor: pointer; vertical-align: 1px; }
+  .notice button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; margin-left: 8px;
+                   cursor: pointer; text-decoration: underline; }
   .row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer; }
   .row input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
   .row .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -82,17 +91,18 @@
       {% endfor %}<button data-new aria-pressed="false">New this week</button>
       <input type="search" placeholder="Search artist, venue or city" aria-label="Search shows">
     </div>
+    <nav class="months" aria-label="Jump to month"></nav>
     {% set ns = namespace(month=none) %}
     {% for show in shows %}
       {% set month = show.starts_on.strftime("%B %Y") %}
       {% set is_new = (today - show.first_seen).days < new_days %}
-      {% if month != ns.month %}<h2>{{ month }}</h2>{% set ns.month = month %}{% endif %}
+      {% if month != ns.month %}<h2 id="month-{{ show.starts_on.strftime('%Y-%m') }}">{{ month }}</h2>{% set ns.month = month %}{% endif %}
       <div class="show" data-country="{{ show.country.value }}" data-new="{{ is_new }}"
            data-ids="{{ show.artist_ids | join(' ') }}"
            data-text="{{ (show.artist ~ ' ' ~ show.venue ~ ' ' ~ show.city) | lower }}">
         <div class="date"><b>{{ show.starts_on.day }}</b>{{ show.starts_on.strftime("%a") }}</div>
         <div>
-          <span class="artist">{{ show.artist }}</span>{% if is_new %}<span class="new">NEW</span>{% endif %}
+          <span class="artist">{{ show.artist }}</span>{% if is_new %}<span class="new">NEW</span>{% endif %}<button class="unfollow" hidden>Unfollow</button>
           <div class="where">{{ show.venue }}{% if show.city %}, {{ show.city }}{% endif %} · {{ show.country.name.title() }}</div>
           <div class="links">{% for source, url in show.links.items() %}<a href="{{ url }}" rel="noopener">{{ source.value }}</a>{% endfor %}</div>
         </div>
@@ -144,9 +154,15 @@
   let followed = null; // Map of Spotify artist ID -> name, once logged in
   let activeTab = "shows";
 
-  function notice(text) {
+  function notice(text, undo) {
     const el = document.getElementById("notice");
-    el.textContent = text || "";
+    el.replaceChildren(text || "");
+    if (undo) {
+      const button = document.createElement("button");
+      button.textContent = "Undo";
+      button.onclick = undo;
+      el.append(button);
+    }
     el.hidden = !text;
   }
 
@@ -352,13 +368,22 @@
         && (!filters.onlyNew || row.dataset.new === "True")
         && (!query || row.dataset.text.includes(query));
       row.hidden = !show;
+      row.querySelector(".unfollow").hidden = !followed;
       visible += show;
     });
+    const months = document.querySelector(".months");
+    months.replaceChildren();
     document.querySelectorAll("#tab-shows h2").forEach(h => {
       let next = h.nextElementSibling, any = false;
       while (next && next.tagName !== "H2") { if (next.classList.contains("show") && !next.hidden) any = true; next = next.nextElementSibling; }
       h.hidden = !any;
+      if (!any) return;
+      const link = document.createElement("a");
+      link.href = "#" + h.id;
+      link.textContent = h.textContent.replace(/(\w{3})\w* (\d{4})/, "$1 $2");
+      months.append(link);
     });
+    months.hidden = !months.children.length;
     const empty = document.getElementById("no-results");
     empty.hidden = visible > 0 || !document.querySelector(".show");
     empty.textContent = followed && !followed.size
@@ -374,6 +399,26 @@
     applyShowFilters();
   }));
   showSearch.addEventListener("input", applyShowFilters);
+  document.getElementById("tab-shows").addEventListener("click", async event => {
+    const button = event.target.closest(".unfollow");
+    if (!button) return;
+    const row = button.closest(".show");
+    const ids = row.dataset.ids.split(" ").filter(id => followed.has(id));
+    const name = row.querySelector(".artist").textContent;
+    button.disabled = true;
+    try {
+      await setFollowing(ids, false, () => {});
+      notice("Unfollowed " + name + ".", async () => {
+        notice("");
+        try { await setFollowing(ids, true, () => {}); } catch (error) { notice(error.message); }
+        render();
+      });
+    } catch (error) {
+      notice(error.message);
+    }
+    button.disabled = false;
+    render();
+  });
   Object.keys(CHECKLISTS).forEach(tab =>
     document.querySelector("#tab-" + tab + " .search").addEventListener("input", () => renderChecklist(tab)));
 
