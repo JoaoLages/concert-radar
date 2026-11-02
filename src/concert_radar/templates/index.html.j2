@@ -16,6 +16,7 @@
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--fg);
          font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
@@ -23,8 +24,11 @@
   h1 { font-size: 24px; margin: 0 0 4px; }
   .sub { color: var(--muted); margin: 0 0 16px; }
   button, input { font: inherit; color: var(--fg); }
-  .account button, .row button { border: 1px solid var(--line); background: var(--chip); border-radius: 999px;
+  .account button, .toolbar button { border: 1px solid var(--line); background: var(--chip); border-radius: 999px;
          padding: 4px 12px; cursor: pointer; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .toolbar .primary { background: var(--fg); color: var(--bg); border-color: var(--fg); margin-left: auto; }
+  .toolbar .primary:disabled { opacity: .4; cursor: default; }
   .account { color: var(--muted); font-size: 14px; }
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
   .tabs button { border: 0; background: none; padding: 8px 12px; cursor: pointer; color: var(--muted);
@@ -47,7 +51,8 @@
          border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
   .where, .count { color: var(--muted); }
   .links a { color: var(--accent); margin-right: 10px; font-size: 13px; }
-  .row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer; }
+  .row input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
   .row .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .count { font-size: 13px; white-space: nowrap; }
   .notice { background: var(--chip); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
@@ -98,11 +103,21 @@
     <p class="empty" id="no-results" hidden>No shows match these filters.</p>
   </section>
 
-  <section id="tab-following" hidden></section>
-  <section id="tab-add" hidden>
-    <input class="search" type="search" placeholder="Search your playlist artists" aria-label="Search playlist artists">
-    <div id="add-list"></div>
+  {% for tab, placeholder in [("following", "Search artists you follow"), ("add", "Search your playlist artists")] %}
+  <section id="tab-{{ tab }}" hidden>
+    <div class="checklist" hidden>
+      <input class="search" type="search" placeholder="{{ placeholder }}" aria-label="{{ placeholder }}">
+      <div class="toolbar">
+        <button data-select="shows">Select all with upcoming shows</button>
+        <button data-select="all">Select all</button>
+        <button data-select="none">Clear</button>
+        <button class="primary" disabled></button>
+      </div>
+      <div class="list"></div>
+    </div>
+    <p class="empty prompt"></p>
   </section>
+  {% endfor %}
 
   <footer>Sources:
     {% for source in sources %}{% set worked = last_worked.get(source) %}
@@ -116,6 +131,7 @@
   const DATA = JSON.parse(document.getElementById("radar-data").textContent);
   const LOGIN = DATA.login;
   const UPCOMING = new Map(DATA.artists.map(a => [a.id, a.upcoming]));
+  const NAMES = new Map(DATA.artists.map(a => [a.id, a.name]));
   const API = "https://api.spotify.com/v1";
 
   // Browser storage can be unavailable (private windows, blocked site data); the page still works logged out.
@@ -189,22 +205,19 @@
     let path = "/me/following?type=artist&limit=50";
     while (path) {
       const page = (await spotify("GET", path)).artists;
-      page.items.forEach(a => map.set(a.id, a.name));
+      page.items.forEach(a => { map.set(a.id, a.name); if (!NAMES.has(a.id)) NAMES.set(a.id, a.name); });
       path = page.next ? page.next.replace(API, "") : null;
     }
     followed = map;
   }
-  async function setFollowing(id, name, follow, button) {
-    button.disabled = true;
-    try {
-      await spotify(follow ? "PUT" : "DELETE", "/me/library?uris=" + encodeURIComponent("spotify:artist:" + id));
-      if (follow) followed.set(id, name); else followed.delete(id);
-      button.textContent = follow ? "Following" : "Unfollowed";
-      applyShowFilters();
-      renderAccount();
-    } catch (error) {
-      button.disabled = false;
-      notice(error.message);
+  // Spotify takes at most 40 artists per follow or unfollow request.
+  async function setFollowing(ids, follow, progress) {
+    for (let i = 0; i < ids.length; i += 40) {
+      const batch = ids.slice(i, i + 40);
+      await spotify(follow ? "PUT" : "DELETE",
+        "/me/library?uris=" + encodeURIComponent(batch.map(id => "spotify:artist:" + id).join(",")));
+      batch.forEach(id => follow ? followed.set(id, NAMES.get(id)) : followed.delete(id));
+      progress(Math.min(i + 40, ids.length));
     }
   }
 
@@ -223,43 +236,86 @@
     }
     el.append(button);
   }
-  function artistRow(id, name, follow) {
-    const row = document.createElement("div");
-    row.className = "row";
-    const label = document.createElement("span");
-    label.className = "name";
-    label.textContent = name;
-    const count = document.createElement("span");
-    count.className = "count";
-    const upcoming = UPCOMING.get(id) || 0;
-    count.textContent = upcoming ? upcoming + (upcoming === 1 ? " upcoming show" : " upcoming shows") : "no shows found";
-    const button = document.createElement("button");
-    button.textContent = follow ? "Follow" : "Unfollow";
-    button.onclick = () => setFollowing(id, name, follow, button);
-    row.append(label, count, button);
-    return row;
-  }
-  function loginPrompt(text) {
-    const p = document.createElement("p");
-    p.className = "empty";
-    p.textContent = text;
-    return p;
-  }
-  function renderFollowing() {
-    const section = document.getElementById("tab-following");
-    if (!followed) { section.replaceChildren(loginPrompt("Log in with Spotify to see the artists you follow.")); return; }
-    if (!followed.size) { section.replaceChildren(loginPrompt("You don't follow any artists yet. Pick some in “Add from playlists”.")); return; }
-    const rows = [...followed].sort((a, b) => (UPCOMING.get(b[0]) || 0) - (UPCOMING.get(a[0]) || 0) || a[1].localeCompare(b[1]));
-    section.replaceChildren(...rows.map(([id, name]) => artistRow(id, name, false)));
-  }
-  function renderAdd() {
-    const list = document.getElementById("add-list");
-    if (!followed) { list.replaceChildren(loginPrompt("Log in with Spotify to follow artists from your playlists.")); return; }
-    const query = document.querySelector("#tab-add .search").value.trim().toLowerCase();
-    const candidates = DATA.artists.filter(a => !followed.has(a.id) && (!query || a.name.toLowerCase().includes(query)));
-    list.replaceChildren(...candidates.slice(0, 300).map(a => artistRow(a.id, a.name, true)));
-    if (!candidates.length) list.append(loginPrompt(query ? "No playlist artist matches that search." : "You already follow every artist in your playlists."));
-    else if (candidates.length > 300) list.append(loginPrompt("Showing 300 of " + candidates.length + ". Search to find others."));
+  // The Following and Add tabs are the same checklist over different artists.
+  const CHECKLISTS = {
+    following: {
+      artists: () => [...followed.keys()],
+      follow: false,
+      action: "Unfollow",
+      loggedOut: "Log in with Spotify to see the artists you follow.",
+      nothing: "You don't follow any artists yet. Pick some in \u201cAdd from playlists\u201d.",
+    },
+    add: {
+      artists: () => DATA.artists.map(a => a.id).filter(id => !followed.has(id)),
+      follow: true,
+      action: "Follow",
+      loggedOut: "Log in with Spotify to follow artists from your playlists.",
+      nothing: "You already follow every artist in your playlists.",
+    },
+  };
+  const selected = { following: new Set(), add: new Set() };
+
+  function renderChecklist(tab) {
+    const config = CHECKLISTS[tab];
+    const section = document.getElementById("tab-" + tab);
+    const checklist = section.querySelector(".checklist");
+    const prompt = section.querySelector(".prompt");
+    const ids = followed ? config.artists() : [];
+    checklist.hidden = !ids.length;
+    prompt.hidden = !!ids.length;
+    prompt.textContent = followed ? config.nothing : config.loggedOut;
+    if (!ids.length) return;
+
+    const query = section.querySelector(".search").value.trim().toLowerCase();
+    const visible = ids
+      .filter(id => !query || NAMES.get(id).toLowerCase().includes(query))
+      .sort((a, b) => (UPCOMING.get(b) || 0) - (UPCOMING.get(a) || 0) || NAMES.get(a).localeCompare(NAMES.get(b)));
+    const chosen = selected[tab];
+    const present = new Set(ids);
+    [...chosen].forEach(id => { if (!present.has(id)) chosen.delete(id); });
+    const go = section.querySelector(".primary");
+    const updateButton = () => {
+      go.textContent = config.action + " selected (" + chosen.size + ")";
+      go.disabled = !chosen.size;
+    };
+    section.querySelector(".list").replaceChildren(...visible.map(id => {
+      const row = document.createElement("label");
+      row.className = "row";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = chosen.has(id);
+      box.onchange = () => { box.checked ? chosen.add(id) : chosen.delete(id); updateButton(); };
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = NAMES.get(id);
+      const count = document.createElement("span");
+      count.className = "count";
+      const upcoming = UPCOMING.get(id) || 0;
+      count.textContent = upcoming ? upcoming + (upcoming === 1 ? " upcoming show" : " upcoming shows") : "no shows found";
+      row.append(box, name, count);
+      return row;
+    }));
+    section.querySelectorAll("[data-select]").forEach(button => {
+      button.onclick = () => {
+        if (button.dataset.select === "none") chosen.clear();
+        visible.forEach(id => {
+          if (button.dataset.select === "all" || (button.dataset.select === "shows" && UPCOMING.get(id))) chosen.add(id);
+        });
+        renderChecklist(tab);
+      };
+    });
+    go.onclick = async () => {
+      const ids = [...chosen];
+      go.disabled = true;
+      try {
+        await setFollowing(ids, config.follow, done => { go.textContent = config.action + "ing\u2026 " + done + "/" + ids.length; });
+        chosen.clear();
+      } catch (error) {
+        notice(error.message);
+      }
+      render();
+    };
+    updateButton();
   }
 
   const filterButtons = document.querySelectorAll(".filters button");
@@ -296,13 +352,13 @@
     applyShowFilters();
   }));
   showSearch.addEventListener("input", applyShowFilters);
-  document.querySelector("#tab-add .search").addEventListener("input", renderAdd);
+  Object.keys(CHECKLISTS).forEach(tab =>
+    document.querySelector("#tab-" + tab + " .search").addEventListener("input", () => renderChecklist(tab)));
 
   function render() {
     renderAccount();
     applyShowFilters();
-    if (activeTab === "following") renderFollowing();
-    if (activeTab === "add") renderAdd();
+    if (activeTab in CHECKLISTS) renderChecklist(activeTab);
   }
   document.querySelectorAll(".tabs button").forEach(tab => tab.addEventListener("click", () => {
     activeTab = tab.dataset.tab;
