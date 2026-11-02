@@ -26,7 +26,9 @@ def test_failed_source_is_skipped_and_its_shows_stay_remembered(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        spotify, "playlist_artists", lambda *_: {"ProfJam", "Capitão Fausto"}
+        spotify,
+        "playlist_artists",
+        lambda *_: {"id1": "ProfJam", "id2": "Capitão Fausto"},
     )
     for name in ("SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"):
         monkeypatch.setenv(name, "x")
@@ -50,7 +52,13 @@ def test_failed_source_is_skipped_and_its_shows_stay_remembered(
         },
     )
 
-    cli.build(tmp_path, pause_seconds=0, ticketline_months=1, new_days=7)
+    cli.build(
+        tmp_path,
+        page_url="https://example.com/",
+        pause_seconds=0,
+        ticketline_months=1,
+        new_days=7,
+    )
 
     state = RadarState.model_validate_json((tmp_path / "state.json").read_text())
     assert state.first_seen == {
@@ -60,5 +68,7 @@ def test_failed_source_is_skipped_and_its_shows_stay_remembered(
     assert state.last_worked == {Source.BOL: seen_long_ago, Source.TICKETLINE: TODAY}
     page = (tmp_path / "index.html").read_text()
     assert "Capitão Fausto" in page
+    assert 'data-ids="id2"' in page
+    assert '"id": "id2", "name": "Capit' in page
     assert "BOL\n      ✗ last worked 1 Jan" in page
-    assert "Bandsintown\n      ✗ never worked" in page
+    assert "La Ganzúa\n      ✗ never worked" in page

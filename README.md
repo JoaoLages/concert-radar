@@ -4,6 +4,8 @@ Find upcoming concerts in Portugal and Spain for **every artist in your Spotify 
 
 Once a day, a GitHub Actions job reads your playlists, collects upcoming concerts from Portuguese and Spanish ticketing and listings sites, matches them against your artists, and publishes the result as a web page on GitHub Pages. Shows that appeared in the last week are marked **NEW**.
 
+Log in with Spotify on the page to see only the artists you **follow on Spotify**. The page lists your playlist artists so you can follow the ones you care about (those with upcoming shows first), and unfollow them again. Follows are real Spotify follows, so they're the same on every device. Without logging in, the page shows every match from your playlists.
+
 ## Sources
 
 | Country | Site | How artists are matched |
@@ -11,9 +13,8 @@ Once a day, a GitHub Actions job reads your playlists, collects upcoming concert
 | Portugal | [BOL](https://www.bol.pt) | Artist name in the event title |
 | Portugal | [Ticketline](https://www.ticketline.pt) | Artist name in the event title |
 | Spain | [La Ganzúa](https://www.laganzua.net) | Performer name |
-| Both | [Bandsintown](https://www.bandsintown.com) | Performer name |
 
-Portuguese ticketing is split by venue and each site holds its own shows, so no single site covers everything. Not covered: Blueticket (which sells many MEO Arena shows), See Tickets, DICE and Shotgun, which block automated access.
+Portuguese ticketing is split by venue and each site holds its own shows, so no single site covers everything. Not covered: Blueticket (which sells many MEO Arena shows), See Tickets, Bandsintown, DICE and Shotgun, which block automated access.
 
 Matching by title is a heuristic. It skips tribute shows, and a short name like "Miguel" only matches when it stands alone in its part of the title, so it won't match "Miguel Araújo". Expect the odd false match, especially when two acts share a name.
 
@@ -25,7 +26,7 @@ You need a Spotify account with **Premium**: Spotify only lets Premium accounts 
 
 1. **Fork this repo.**
 2. **Create a Spotify app** in the [developer dashboard](https://developer.spotify.com/dashboard):
-   - Redirect URI: `http://127.0.0.1:8888/callback` (Spotify rejects `localhost`)
+   - Redirect URIs: `http://127.0.0.1:8888/callback` (for the one-time login below; Spotify rejects `localhost`) and your page's address, `https://<your-user>.github.io/concert-radar/` (for logging in on the page)
    - API: Web API
    - Copy the Client ID and Client secret from the app's settings.
 3. **Get a refresh token** by logging in once, locally. Install [uv](https://docs.astral.sh/uv/), then:
@@ -38,7 +39,7 @@ You need a Spotify account with **Premium**: Spotify only lets Premium accounts 
 5. **Turn on GitHub Pages** (Settings → Pages → Source: GitHub Actions).
 6. **Run the workflow** once from the Actions tab ("Build concerts page" → Run workflow). After that it runs every day.
 
-Your page lives at `https://<your-user>.github.io/concert-radar/`. On a public repo, the page is public too.
+Your page lives at `https://<your-user>.github.io/concert-radar/`. On a public repo, the page is public too. Only you can log in on it: Spotify limits developer apps to the account that owns them plus up to five users added under User Management in the dashboard.
 
 Only playlists you own or collaborate on are read: Spotify doesn't give developer apps the tracks of playlists you merely follow.
 
@@ -46,7 +47,7 @@ Only playlists you own or collaborate on are read: Spotify doesn't give develope
 
 ```sh
 export SPOTIFY_CLIENT_ID=... SPOTIFY_CLIENT_SECRET=... SPOTIFY_REFRESH_TOKEN=...
-uv run concert-radar build --out site
+uv run concert-radar build --out site --page-url http://127.0.0.1:8888/callback
 open site/index.html
 ```
 

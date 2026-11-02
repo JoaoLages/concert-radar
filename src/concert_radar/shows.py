@@ -1,5 +1,6 @@
 """Turns raw listings into the deduplicated shows the page displays."""
 
+from collections import defaultdict
 from datetime import date
 
 from concert_radar.matching import ArtistMatcher, normalize
@@ -13,12 +14,17 @@ def show_key(artist: str, starts_on: date) -> str:
 
 def shows_from(
     listings: list[Listing],
-    matcher: ArtistMatcher,
+    artists: dict[str, str],
     first_seen: dict[str, date],
     today: date,
 ) -> list[Show]:
-    """One show per artist and day. Sites spell venues differently, so the first site to list
-    a show names its venue. A show missing from `first_seen` is new today."""
+    """One show per artist and day, for artists given as Spotify ID -> name. Sites spell venues
+    differently, so the first site to list a show names its venue. A show missing from
+    `first_seen` is new today."""
+    ids_by_name: dict[str, list[str]] = defaultdict(list)
+    for artist_id, name in artists.items():
+        ids_by_name[normalize(name)].append(artist_id)
+    matcher = ArtistMatcher(artists.values())
     shows: dict[str, Show] = {}
     for listing in listings:
         for artist in matcher.artists_in(listing):
@@ -28,6 +34,7 @@ def shows_from(
                 continue
             shows[key] = Show(
                 artist=artist,
+                artist_ids=sorted(ids_by_name[normalize(artist)]),
                 starts_on=listing.starts_on,
                 venue=listing.venue,
                 city=listing.city,

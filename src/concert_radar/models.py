@@ -13,7 +13,6 @@ class Source(StrEnum):
     BOL = "BOL"
     TICKETLINE = "Ticketline"
     LA_GANZUA = "La Ganzúa"
-    BANDSINTOWN = "Bandsintown"
 
 
 class Listing(BaseModel):
@@ -46,9 +45,37 @@ class Show(BaseModel):
     """A playlist artist playing on a given day, merged across every site that lists it."""
 
     artist: str
+    artist_ids: list[str] = Field(
+        description="Spotify IDs of the playlist artists with this name; usually one."
+    )
     starts_on: date
     venue: str
     city: str
     country: Country
     links: dict[Source, str]
     first_seen: date
+
+
+class PlaylistArtist(BaseModel):
+    """An artist from the user's playlists, as the page lists them for following."""
+
+    id: str = Field(description="Spotify artist ID.")
+    name: str
+    upcoming: int = Field(description="How many upcoming shows were found for them.")
+
+
+class PageLogin(BaseModel):
+    """What the page needs to log you in to Spotify from the browser. None of it is secret."""
+
+    client_id: str
+    redirect_uri: str
+    scope: str
+
+
+class PageData(BaseModel):
+    """Data the page's script reads: how to log in, and the playlist artists to offer for following."""
+
+    login: PageLogin
+    artists: list[PlaylistArtist] = Field(
+        description="Artists with upcoming shows first."
+    )

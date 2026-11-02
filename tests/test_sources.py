@@ -4,7 +4,7 @@ from pathlib import Path
 import httpx
 
 from concert_radar.models import Country, Listing, Source
-from concert_radar.sources import bandsintown, bol, laganzua, ticketline
+from concert_radar.sources import bol, laganzua, ticketline
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -59,14 +59,3 @@ def test_laganzua_skips_past_events() -> None:
         for listing in laganzua.listings(_client("laganzua.html"), date(2026, 11, 1))
     ] == [["Drugos"], ["Drugos"]]
     assert laganzua.listings(_client("laganzua.html"), date(2027, 6, 1)) == []
-
-
-def test_bandsintown_keeps_only_portugal_and_spain() -> None:
-    found = bandsintown.listings(_client("bandsintown.json"))
-    assert {
-        (listing.performers[0], listing.city, listing.country) for listing in found
-    } == {
-        ("Richard Bona", "Madrid", Country.SPAIN),
-        (found[1].performers[0], found[1].city, Country.SPAIN),
-    }
-    assert len(found) == 2

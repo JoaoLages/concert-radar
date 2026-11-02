@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import time
+from collections import Counter
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -10,10 +11,18 @@ import httpx
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from concert_radar import spotify
-from concert_radar.matching import ArtistMatcher
-from concert_radar.models import Country, Listing, RadarState, Source
+from concert_radar.matching import normalize
+from concert_radar.models import (
+    Country,
+    Listing,
+    PageData,
+    PageLogin,
+    PlaylistArtist,
+    RadarState,
+    Source,
+)
 from concert_radar.shows import show_key, shows_from
-from concert_radar.sources import bandsintown, bol, laganzua, ticketline
+from concert_radar.sources import bol, laganzua, ticketline
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +52,6 @@ def _fetch_listings(
                 client, today, ticketline_months
             ),
             Source.LA_GANZUA: lambda: laganzua.listings(client, today),
-            Source.BANDSINTOWN: lambda: bandsintown.listings(client),
         }
         worked: dict[Source, list[Listing]] = {}
         for source, fetch in fetchers.items():
@@ -61,11 +69,16 @@ def _fetch_listings(
 
 
 def build(
-    out_dir: Path, pause_seconds: float, ticketline_months: int, new_days: int
+    out_dir: Path,
+    page_url: str,
+    pause_seconds: float,
+    ticketline_months: int,
+    new_days: int,
 ) -> None:
     today = date.today()
+    client_id = os.environ["SPOTIFY_CLIENT_ID"]
     artists = spotify.playlist_artists(
-        os.environ["SPOTIFY_CLIENT_ID"],
+        client_id,
         os.environ["SPOTIFY_CLIENT_SECRET"],
         os.environ["SPOTIFY_REFRESH_TOKEN"],
     )
@@ -79,11 +92,12 @@ def build(
     by_source = _fetch_listings(today, pause_seconds, ticketline_months)
     shows = shows_from(
         [listing for found in by_source.values() for listing in found],
-        ArtistMatcher(artists),
+        artists,
         state.first_seen,
         today,
     )
     logger.info("Matched %d shows", len(shows))
+    upcoming = Counter(artist_id for show in shows for artist_id in show.artist_ids)
     # Upcoming shows stay remembered while their source is down, so they aren't "new" again on its return.
     state = RadarState(
         first_seen={
@@ -103,6 +117,20 @@ def build(
         template.render(
             shows=shows,
             artist_count=len(artists),
+            page_data=PageData(
+                login=PageLogin(
+                    client_id=client_id, redirect_uri=page_url, scope=spotify.PAGE_SCOPE
+                ),
+                artists=sorted(
+                    (
+                        PlaylistArtist(
+                            id=artist_id, name=name, upcoming=upcoming[artist_id]
+                        )
+                        for artist_id, name in artists.items()
+                    ),
+                    key=lambda a: (-a.upcoming, normalize(a.name)),
+                ),
+            ).model_dump(mode="json"),
             countries=list(Country),
             sources=list(Source),
             last_worked=state.last_worked,
@@ -134,6 +162,12 @@ def main() -> None:
         help=f"Folder for index.html and {_STATE_FILE}.",
     )
     build_parser.add_argument(
+        "--page-url",
+        required=True,
+        help="Where the page is published; Spotify sends you back here after logging in, "
+        "so it must be a Redirect URI of the Spotify app.",
+    )
+    build_parser.add_argument(
         "--pause", type=float, default=0.5, help="Seconds to wait before each request."
     )
     build_parser.add_argument(
@@ -156,6 +190,8 @@ def main() -> None:
             )
         )
     elif args.command == "build":
-        build(args.out, args.pause, args.ticketline_months, args.new_days)
+        build(
+            args.out, args.page_url, args.pause, args.ticketline_months, args.new_days
+        )
     else:
         raise NotImplementedError(args.command)

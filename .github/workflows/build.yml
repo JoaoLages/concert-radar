@@ -31,7 +31,7 @@ jobs:
           mkdir -p site
           curl -fsSL "${{ steps.pages.outputs.base_url }}/state.json" -o site/state.json || rm -f site/state.json
       - name: Build
-        run: uv run concert-radar build --out site
+        run: uv run concert-radar build --out site --page-url "${{ steps.pages.outputs.base_url }}/"
         env:
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}

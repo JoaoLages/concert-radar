@@ -19,12 +19,22 @@
   body { margin: 0; background: var(--bg); color: var(--fg);
          font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
   h1 { font-size: 24px; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin: 0 0 20px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  button, input { font: inherit; color: var(--fg); }
+  .account button, .row button { border: 1px solid var(--line); background: var(--chip); border-radius: 999px;
+         padding: 4px 12px; cursor: pointer; }
+  .account { color: var(--muted); font-size: 14px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .tabs button { border: 0; background: none; padding: 8px 12px; cursor: pointer; color: var(--muted);
+         border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
   .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-  .filters button, .filters input { font: inherit; border: 1px solid var(--line); background: var(--chip);
-         color: var(--fg); border-radius: 999px; padding: 6px 14px; }
-  .filters input { flex: 1 1 180px; border-radius: 8px; }
+  .filters button, .filters input, .search { border: 1px solid var(--line); background: var(--chip);
+         border-radius: 999px; padding: 6px 14px; }
+  .filters input, .search { flex: 1 1 180px; border-radius: 8px; }
+  .search { width: 100%; margin-bottom: 12px; }
   .filters button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
        margin: 28px 0 6px; }
@@ -35,8 +45,12 @@
   .artist { font-weight: 600; }
   .new { background: var(--new-bg); color: var(--new-fg); font-size: 11px; font-weight: 600;
          border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
-  .where { color: var(--muted); }
+  .where, .count { color: var(--muted); }
   .links a { color: var(--accent); margin-right: 10px; font-size: 13px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .row .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .count { font-size: 13px; white-space: nowrap; }
+  .notice { background: var(--chip); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
   .empty { color: var(--muted); padding: 24px 0; }
   footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
   footer .down { color: var(--accent); }
@@ -44,32 +58,52 @@
 </head>
 <body>
 <main>
-  <h1>Concert Radar</h1>
-  <p class="sub">{{ shows | length }} upcoming shows in Portugal and Spain for {{ artist_count }} artists in my Spotify playlists. Updated {{ today.isoformat() }}.</p>
-  <div class="filters">
-    <button data-country="" aria-pressed="true">All</button>
-    {% for country in countries %}<button data-country="{{ country.value }}" aria-pressed="false">{{ country.name.title() }}</button>
-    {% endfor %}<button data-new aria-pressed="false">New this week</button>
-    <input type="search" placeholder="Search artist, venue or city" aria-label="Search">
-  </div>
-  {% set ns = namespace(month=none) %}
-  {% for show in shows %}
-    {% set month = show.starts_on.strftime("%B %Y") %}
-    {% set is_new = (today - show.first_seen).days < new_days %}
-    {% if month != ns.month %}<h2>{{ month }}</h2>{% set ns.month = month %}{% endif %}
-    <div class="show" data-country="{{ show.country.value }}" data-new="{{ is_new }}"
-         data-text="{{ (show.artist ~ ' ' ~ show.venue ~ ' ' ~ show.city) | lower }}">
-      <div class="date"><b>{{ show.starts_on.day }}</b>{{ show.starts_on.strftime("%a") }}</div>
-      <div>
-        <span class="artist">{{ show.artist }}</span>{% if is_new %}<span class="new">NEW</span>{% endif %}
-        <div class="where">{{ show.venue }}{% if show.city %}, {{ show.city }}{% endif %} · {{ show.country.name.title() }}</div>
-        <div class="links">{% for source, url in show.links.items() %}<a href="{{ url }}" rel="noopener">{{ source.value }}</a>{% endfor %}</div>
-      </div>
+  <header>
+    <h1>Concert Radar</h1>
+    <div class="account" id="account"></div>
+  </header>
+  <p class="sub">Upcoming shows in Portugal and Spain for {{ artist_count }} artists in my Spotify playlists. Updated {{ today.isoformat() }}.</p>
+  <p class="notice" id="notice" hidden></p>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="shows" aria-selected="true">Shows</button>
+    <button role="tab" data-tab="following" aria-selected="false">Following</button>
+    <button role="tab" data-tab="add" aria-selected="false">Add from playlists</button>
+  </nav>
+
+  <section id="tab-shows">
+    <div class="filters">
+      <button data-country="" aria-pressed="true">All</button>
+      {% for country in countries %}<button data-country="{{ country.value }}" aria-pressed="false">{{ country.name.title() }}</button>
+      {% endfor %}<button data-new aria-pressed="false">New this week</button>
+      <input type="search" placeholder="Search artist, venue or city" aria-label="Search shows">
     </div>
-  {% else %}
-    <p class="empty">No upcoming shows found for any playlist artist.</p>
-  {% endfor %}
-  <p class="empty" id="no-results" hidden>No shows match these filters.</p>
+    {% set ns = namespace(month=none) %}
+    {% for show in shows %}
+      {% set month = show.starts_on.strftime("%B %Y") %}
+      {% set is_new = (today - show.first_seen).days < new_days %}
+      {% if month != ns.month %}<h2>{{ month }}</h2>{% set ns.month = month %}{% endif %}
+      <div class="show" data-country="{{ show.country.value }}" data-new="{{ is_new }}"
+           data-ids="{{ show.artist_ids | join(' ') }}"
+           data-text="{{ (show.artist ~ ' ' ~ show.venue ~ ' ' ~ show.city) | lower }}">
+        <div class="date"><b>{{ show.starts_on.day }}</b>{{ show.starts_on.strftime("%a") }}</div>
+        <div>
+          <span class="artist">{{ show.artist }}</span>{% if is_new %}<span class="new">NEW</span>{% endif %}
+          <div class="where">{{ show.venue }}{% if show.city %}, {{ show.city }}{% endif %} · {{ show.country.name.title() }}</div>
+          <div class="links">{% for source, url in show.links.items() %}<a href="{{ url }}" rel="noopener">{{ source.value }}</a>{% endfor %}</div>
+        </div>
+      </div>
+    {% else %}
+      <p class="empty">No upcoming shows found for any playlist artist.</p>
+    {% endfor %}
+    <p class="empty" id="no-results" hidden>No shows match these filters.</p>
+  </section>
+
+  <section id="tab-following" hidden></section>
+  <section id="tab-add" hidden>
+    <input class="search" type="search" placeholder="Search your playlist artists" aria-label="Search playlist artists">
+    <div id="add-list"></div>
+  </section>
+
   <footer>Sources:
     {% for source in sources %}{% set worked = last_worked.get(source) %}
     <span class="{{ 'ok' if worked == today else 'down' }}">{{ source.value }}
@@ -77,36 +111,215 @@
     {% endfor %}
   </footer>
 </main>
+<script id="radar-data" type="application/json">{{ page_data | tojson }}</script>
 <script>
-  const buttons = document.querySelectorAll(".filters button");
-  const search = document.querySelector(".filters input");
-  const state = { country: "", onlyNew: false };
-  function apply() {
-    const query = search.value.trim().toLowerCase();
+  const DATA = JSON.parse(document.getElementById("radar-data").textContent);
+  const LOGIN = DATA.login;
+  const UPCOMING = new Map(DATA.artists.map(a => [a.id, a.upcoming]));
+  const API = "https://api.spotify.com/v1";
+
+  // Browser storage can be unavailable (private windows, blocked site data); the page still works logged out.
+  const store = {
+    get: k => { try { return localStorage.getItem("radar:" + k); } catch { return null; } },
+    set: (k, v) => { try { localStorage.setItem("radar:" + k, v); } catch {} },
+    del: k => { try { localStorage.removeItem("radar:" + k); } catch {} },
+  };
+
+  let followed = null; // Map of Spotify artist ID -> name, once logged in
+  let activeTab = "shows";
+
+  function notice(text) {
+    const el = document.getElementById("notice");
+    el.textContent = text || "";
+    el.hidden = !text;
+  }
+
+  // --- Spotify login (authorization code with PKCE: no secret in the page) ---
+  function base64url(bytes) {
+    return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  async function login() {
+    const verifier = base64url(crypto.getRandomValues(new Uint8Array(48)));
+    store.set("verifier", verifier);
+    const challenge = base64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+    location.href = "https://accounts.spotify.com/authorize?" + new URLSearchParams({
+      client_id: LOGIN.client_id, response_type: "code", redirect_uri: LOGIN.redirect_uri,
+      scope: LOGIN.scope, code_challenge_method: "S256", code_challenge: challenge,
+    });
+  }
+  function logout() {
+    ["access", "expires", "refresh", "verifier"].forEach(store.del);
+    followed = null;
+    render();
+  }
+  async function requestToken(params) {
+    const response = await fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: LOGIN.client_id, ...params }),
+    });
+    if (!response.ok) throw new Error("Spotify login failed (" + response.status + ")");
+    const token = await response.json();
+    store.set("access", token.access_token);
+    store.set("expires", String(Date.now() + (token.expires_in - 60) * 1000));
+    if (token.refresh_token) store.set("refresh", token.refresh_token);
+  }
+  async function finishLoginRedirect() {
+    const params = new URLSearchParams(location.search);
+    if (!params.has("code") && !params.has("error")) return;
+    history.replaceState(null, "", LOGIN.redirect_uri);
+    if (params.has("error")) { notice("Spotify login was cancelled."); return; }
+    await requestToken({ grant_type: "authorization_code", code: params.get("code"),
+      redirect_uri: LOGIN.redirect_uri, code_verifier: store.get("verifier") || "" });
+    store.del("verifier");
+  }
+  async function accessToken() {
+    if (store.get("access") && Date.now() < Number(store.get("expires"))) return store.get("access");
+    await requestToken({ grant_type: "refresh_token", refresh_token: store.get("refresh") });
+    return store.get("access");
+  }
+  async function spotify(method, path) {
+    const response = await fetch(API + path, { method, headers: { Authorization: "Bearer " + await accessToken() } });
+    if (response.status === 403) throw new Error("Spotify refused access. Only users added to the Spotify app (Dashboard → User Management) can log in.");
+    if (!response.ok) throw new Error("Spotify request failed (" + response.status + ")");
+    return response.status === 204 ? null : response.json().catch(() => null);
+  }
+  async function loadFollowed() {
+    const map = new Map();
+    let path = "/me/following?type=artist&limit=50";
+    while (path) {
+      const page = (await spotify("GET", path)).artists;
+      page.items.forEach(a => map.set(a.id, a.name));
+      path = page.next ? page.next.replace(API, "") : null;
+    }
+    followed = map;
+  }
+  async function setFollowing(id, name, follow, button) {
+    button.disabled = true;
+    try {
+      await spotify(follow ? "PUT" : "DELETE", "/me/library?uris=" + encodeURIComponent("spotify:artist:" + id));
+      if (follow) followed.set(id, name); else followed.delete(id);
+      button.textContent = follow ? "Following" : "Unfollowed";
+      applyShowFilters();
+      renderAccount();
+    } catch (error) {
+      button.disabled = false;
+      notice(error.message);
+    }
+  }
+
+  // --- Rendering ---
+  function renderAccount() {
+    const el = document.getElementById("account");
+    el.replaceChildren();
+    const button = document.createElement("button");
+    if (followed) {
+      el.append("Following " + followed.size + (followed.size === 1 ? " artist · " : " artists · "));
+      button.textContent = "Log out";
+      button.onclick = logout;
+    } else {
+      button.textContent = "Log in with Spotify";
+      button.onclick = login;
+    }
+    el.append(button);
+  }
+  function artistRow(id, name, follow) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const label = document.createElement("span");
+    label.className = "name";
+    label.textContent = name;
+    const count = document.createElement("span");
+    count.className = "count";
+    const upcoming = UPCOMING.get(id) || 0;
+    count.textContent = upcoming ? upcoming + (upcoming === 1 ? " upcoming show" : " upcoming shows") : "no shows found";
+    const button = document.createElement("button");
+    button.textContent = follow ? "Follow" : "Unfollow";
+    button.onclick = () => setFollowing(id, name, follow, button);
+    row.append(label, count, button);
+    return row;
+  }
+  function loginPrompt(text) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = text;
+    return p;
+  }
+  function renderFollowing() {
+    const section = document.getElementById("tab-following");
+    if (!followed) { section.replaceChildren(loginPrompt("Log in with Spotify to see the artists you follow.")); return; }
+    if (!followed.size) { section.replaceChildren(loginPrompt("You don't follow any artists yet. Pick some in “Add from playlists”.")); return; }
+    const rows = [...followed].sort((a, b) => (UPCOMING.get(b[0]) || 0) - (UPCOMING.get(a[0]) || 0) || a[1].localeCompare(b[1]));
+    section.replaceChildren(...rows.map(([id, name]) => artistRow(id, name, false)));
+  }
+  function renderAdd() {
+    const list = document.getElementById("add-list");
+    if (!followed) { list.replaceChildren(loginPrompt("Log in with Spotify to follow artists from your playlists.")); return; }
+    const query = document.querySelector("#tab-add .search").value.trim().toLowerCase();
+    const candidates = DATA.artists.filter(a => !followed.has(a.id) && (!query || a.name.toLowerCase().includes(query)));
+    list.replaceChildren(...candidates.slice(0, 300).map(a => artistRow(a.id, a.name, true)));
+    if (!candidates.length) list.append(loginPrompt(query ? "No playlist artist matches that search." : "You already follow every artist in your playlists."));
+    else if (candidates.length > 300) list.append(loginPrompt("Showing 300 of " + candidates.length + ". Search to find others."));
+  }
+
+  const filterButtons = document.querySelectorAll(".filters button");
+  const showSearch = document.querySelector(".filters input");
+  const filters = { country: "", onlyNew: false };
+  function applyShowFilters() {
+    const query = showSearch.value.trim().toLowerCase();
     let visible = 0;
     document.querySelectorAll(".show").forEach(row => {
-      const show = (!state.country || row.dataset.country === state.country)
-        && (!state.onlyNew || row.dataset.new === "True")
+      const show = (!followed || row.dataset.ids.split(" ").some(id => followed.has(id)))
+        && (!filters.country || row.dataset.country === filters.country)
+        && (!filters.onlyNew || row.dataset.new === "True")
         && (!query || row.dataset.text.includes(query));
       row.hidden = !show;
       visible += show;
     });
-    document.querySelectorAll("h2").forEach(h => {
+    document.querySelectorAll("#tab-shows h2").forEach(h => {
       let next = h.nextElementSibling, any = false;
       while (next && next.tagName !== "H2") { if (next.classList.contains("show") && !next.hidden) any = true; next = next.nextElementSibling; }
       h.hidden = !any;
     });
-    document.getElementById("no-results").hidden = visible > 0 || !document.querySelector(".show");
+    const empty = document.getElementById("no-results");
+    empty.hidden = visible > 0 || !document.querySelector(".show");
+    empty.textContent = followed && !followed.size
+      ? "You don't follow any artists yet. Pick some in “Add from playlists”."
+      : "No shows match these filters.";
   }
-  buttons.forEach(b => b.addEventListener("click", () => {
-    if (b.hasAttribute("data-new")) { state.onlyNew = !state.onlyNew; b.setAttribute("aria-pressed", state.onlyNew); }
+  filterButtons.forEach(b => b.addEventListener("click", () => {
+    if (b.hasAttribute("data-new")) { filters.onlyNew = !filters.onlyNew; b.setAttribute("aria-pressed", filters.onlyNew); }
     else {
-      state.country = b.dataset.country;
-      buttons.forEach(o => { if (!o.hasAttribute("data-new")) o.setAttribute("aria-pressed", o === b); });
+      filters.country = b.dataset.country;
+      filterButtons.forEach(o => { if (!o.hasAttribute("data-new")) o.setAttribute("aria-pressed", o === b); });
     }
-    apply();
+    applyShowFilters();
   }));
-  search.addEventListener("input", apply);
+  showSearch.addEventListener("input", applyShowFilters);
+  document.querySelector("#tab-add .search").addEventListener("input", renderAdd);
+
+  function render() {
+    renderAccount();
+    applyShowFilters();
+    if (activeTab === "following") renderFollowing();
+    if (activeTab === "add") renderAdd();
+  }
+  document.querySelectorAll(".tabs button").forEach(tab => tab.addEventListener("click", () => {
+    activeTab = tab.dataset.tab;
+    document.querySelectorAll(".tabs button").forEach(t => t.setAttribute("aria-selected", t === tab));
+    document.querySelectorAll("main > section").forEach(s => { s.hidden = s.id !== "tab-" + activeTab; });
+    render();
+  }));
+
+  (async () => {
+    try {
+      await finishLoginRedirect();
+      if (store.get("refresh")) await loadFollowed();
+    } catch (error) {
+      notice(error.message);
+    }
+    render();
+  })();
 </script>
 </body>
 </html>
