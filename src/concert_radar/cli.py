@@ -77,18 +77,30 @@ def build(
 ) -> None:
     today = date.today()
     client_id = os.environ["SPOTIFY_CLIENT_ID"]
-    artists = spotify.playlist_artists(
-        client_id,
-        os.environ["SPOTIFY_CLIENT_SECRET"],
-        os.environ["SPOTIFY_REFRESH_TOKEN"],
-    )
-    logger.info("Spotify: %d artists", len(artists))
     state_path = out_dir / _STATE_FILE
     state = (
         RadarState.model_validate_json(state_path.read_bytes())
         if state_path.exists()
         else RadarState(first_seen={}, last_worked={})
     )
+    try:
+        artists = spotify.playlist_artists(
+            client_id,
+            os.environ["SPOTIFY_CLIENT_SECRET"],
+            os.environ["SPOTIFY_REFRESH_TOKEN"],
+        )
+        artists_read_on = today
+        logger.info("Spotify: %d artists", len(artists))
+    except Exception:
+        # Without Spotify the concerts can still be refreshed for the artists we already know.
+        if not state.artists:
+            raise
+        logger.exception(
+            "Spotify failed; using the %d artists read on %s",
+            len(state.artists),
+            state.artists_read_on,
+        )
+        artists, artists_read_on = state.artists, state.artists_read_on
     by_source = _fetch_listings(today, pause_seconds, ticketline_months)
     shows = shows_from(
         [listing for found in by_source.values() for listing in found],
@@ -107,6 +119,8 @@ def build(
         }
         | {show_key(s.artist, s.starts_on): s.first_seen for s in shows},
         last_worked=state.last_worked | dict.fromkeys(by_source, today),
+        artists=artists,
+        artists_read_on=artists_read_on,
     )
 
     template = Environment(
@@ -134,6 +148,7 @@ def build(
             countries=list(Country),
             sources=list(Source),
             last_worked=state.last_worked,
+            artists_read_on=state.artists_read_on,
             today=today,
             new_days=new_days,
         ),

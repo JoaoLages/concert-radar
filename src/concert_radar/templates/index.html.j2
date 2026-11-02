@@ -129,7 +129,8 @@
   </section>
   {% endfor %}
 
-  <footer>Sources:
+  <footer>Spotify
+    <span class="{{ 'ok' if artists_read_on == today else 'down' }}">{% if artists_read_on == today %}✓{% else %}✗ using artists from {{ artists_read_on.strftime("%-d %b") }}{% endif %}</span> · Sources:
     {% for source in sources %}{% set worked = last_worked.get(source) %}
     <span class="{{ 'ok' if worked == today else 'down' }}">{{ source.value }}
       {% if worked == today %}✓{% elif worked %}✗ last worked {{ worked.strftime("%-d %b") }}{% else %}✗ never worked{% endif %}</span>{% if not loop.last %} · {% endif %}

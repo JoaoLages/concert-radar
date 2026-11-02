@@ -31,6 +31,9 @@ jobs:
         run: |
           mkdir -p site
           curl -fsSL "${{ steps.pages.outputs.base_url }}/state.json" -o site/state.json || rm -f site/state.json
+      # One-off: seed the artist list so this run can deploy while Spotify rate-limits the app. Remove after.
+      - name: Seed artists
+        run: cp seed-state.json site/state.json
       - name: Build
         run: uv run concert-radar build --out site --page-url "${{ steps.pages.outputs.base_url }}/"
         env:

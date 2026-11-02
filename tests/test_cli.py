@@ -72,3 +72,47 @@ def test_failed_source_is_skipped_and_its_shows_stay_remembered(
     assert '"id": "id2", "name": "Capit' in page
     assert "BOL\n      ✗ last worked 1 Jan" in page
     assert "La Ganzúa\n      ✗ never worked" in page
+
+
+def test_spotify_failure_falls_back_to_the_saved_artists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def rate_limited(*_: str) -> dict[str, str]:
+        raise RuntimeError("rate limited")
+
+    monkeypatch.setattr(spotify, "playlist_artists", rate_limited)
+    for name in ("SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"):
+        monkeypatch.setenv(name, "x")
+    upcoming = TODAY.replace(year=TODAY.year + 1)
+    (tmp_path / "state.json").write_text(
+        RadarState(
+            first_seen={},
+            last_worked={},
+            artists={"id2": "Capitão Fausto"},
+            artists_read_on=date(2020, 1, 1),
+        ).model_dump_json()
+    )
+    monkeypatch.setattr(
+        cli,
+        "_fetch_listings",
+        lambda *_: {
+            Source.TICKETLINE: [_listing(Source.TICKETLINE, "CAPITÃO FAUSTO", upcoming)]
+        },
+    )
+
+    cli.build(
+        tmp_path,
+        page_url="https://example.com/",
+        pause_seconds=0,
+        ticketline_months=1,
+        new_days=7,
+    )
+
+    page = (tmp_path / "index.html").read_text()
+    assert 'data-ids="id2"' in page
+    assert "✗ using artists from 1 Jan" in page
+    state = RadarState.model_validate_json((tmp_path / "state.json").read_text())
+    assert (state.artists, state.artists_read_on) == (
+        {"id2": "Capitão Fausto"},
+        date(2020, 1, 1),
+    )

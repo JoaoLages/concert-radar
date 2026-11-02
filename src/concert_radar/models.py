@@ -39,6 +39,14 @@ class RadarState(BaseModel):
     last_worked: dict[Source, date] = Field(
         description="The last day each source returned events."
     )
+    # Defaults keep state files written before these fields existed readable.
+    artists: dict[str, str] = Field(
+        default_factory=dict,
+        description="Spotify ID -> name of the playlist artists, as last read from Spotify.",
+    )
+    artists_read_on: date | None = Field(
+        default=None, description="The day the artists were last read from Spotify."
+    )
 
 
 class Show(BaseModel):
