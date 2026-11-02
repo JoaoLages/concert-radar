@@ -164,7 +164,7 @@
     });
   }
   function logout() {
-    ["access", "expires", "refresh", "verifier"].forEach(store.del);
+    ["access", "expires", "refresh", "verifier", "followed"].forEach(store.del);
     followed = null;
     render();
   }
@@ -174,7 +174,14 @@
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ client_id: LOGIN.client_id, ...params }),
     });
-    if (!response.ok) throw new Error("Spotify login failed (" + response.status + ")");
+    if (!response.ok) {
+      // A refresh token stops working when it's revoked or replaced (e.g. by another tab); start over.
+      if (params.grant_type === "refresh_token") {
+        ["access", "expires", "refresh", "followed"].forEach(store.del);
+        throw new Error("Your Spotify login expired. Log in again.");
+      }
+      throw new Error("Spotify login failed (" + response.status + ")");
+    }
     const token = await response.json();
     store.set("access", token.access_token);
     store.set("expires", String(Date.now() + (token.expires_in - 60) * 1000));
@@ -195,7 +202,13 @@
     return store.get("access");
   }
   async function spotify(method, path) {
-    const response = await fetch(API + path, { method, headers: { Authorization: "Bearer " + await accessToken() } });
+    let response;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      response = await fetch(API + path, { method, headers: { Authorization: "Bearer " + await accessToken() } });
+      if (response.status !== 429) break;
+      // Rate limited: Spotify says how long to wait.
+      await new Promise(r => setTimeout(r, 1000 * Number(response.headers.get("Retry-After") || 2)));
+    }
     if (response.status === 403) throw new Error("Spotify refused access. Only users added to the Spotify app (Dashboard → User Management) can log in.");
     if (!response.ok) throw new Error("Spotify request failed (" + response.status + ")");
     return response.status === 204 ? null : response.json().catch(() => null);
@@ -209,6 +222,11 @@
       path = page.next ? page.next.replace(API, "") : null;
     }
     followed = map;
+    saveFollowed();
+  }
+  // Remembered so the page can show your follows instantly next time, while it refreshes them.
+  function saveFollowed() {
+    store.set("followed", JSON.stringify([...followed]));
   }
   // Spotify takes at most 40 artists per follow or unfollow request.
   async function setFollowing(ids, follow, progress) {
@@ -217,6 +235,7 @@
       await spotify(follow ? "PUT" : "DELETE",
         "/me/library?uris=" + encodeURIComponent(batch.map(id => "spotify:artist:" + id).join(",")));
       batch.forEach(id => follow ? followed.set(id, NAMES.get(id)) : followed.delete(id));
+      saveFollowed();
       progress(Math.min(i + 40, ids.length));
     }
   }
@@ -230,6 +249,9 @@
       el.append("Following " + followed.size + (followed.size === 1 ? " artist · " : " artists · "));
       button.textContent = "Log out";
       button.onclick = logout;
+    } else if (store.get("refresh")) {
+      el.append("Loading your Spotify follows\u2026");
+      return;
     } else {
       button.textContent = "Log in with Spotify";
       button.onclick = login;
@@ -370,8 +392,14 @@
   (async () => {
     try {
       await finishLoginRedirect();
+      try {
+        const cached = store.get("followed");
+        if (cached && store.get("refresh")) followed = new Map(JSON.parse(cached));
+      } catch {}
+      render();
       if (store.get("refresh")) await loadFollowed();
     } catch (error) {
+      if (!store.get("refresh")) followed = null;
       notice(error.message);
     }
     render();
