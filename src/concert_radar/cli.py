@@ -118,6 +118,8 @@ def main() -> None:
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", "INFO"), format="%(levelname)s %(message)s"
     )
+    # httpx logs every request at INFO, which buries the one-line-per-source summary.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(prog="concert-radar")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser(
