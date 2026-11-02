@@ -222,8 +222,10 @@
     for (let attempt = 0; attempt < 4; attempt++) {
       response = await fetch(API + path, { method, headers: { Authorization: "Bearer " + await accessToken() } });
       if (response.status !== 429) break;
-      // Rate limited: Spotify says how long to wait.
-      await new Promise(r => setTimeout(r, 1000 * Number(response.headers.get("Retry-After") || 2)));
+      // Rate limited: wait as long as Spotify asks, unless that's too long to sit on a page.
+      const wait = Number(response.headers.get("Retry-After") || 2);
+      if (wait > 30) throw new Error("Spotify is limiting requests right now. Try again in " + Math.ceil(wait / 60) + " minutes.");
+      await new Promise(r => setTimeout(r, 1000 * wait));
     }
     if (response.status === 403) throw new Error("Spotify refused access. Only users added to the Spotify app (Dashboard → User Management) can log in.");
     if (!response.ok) throw new Error("Spotify request failed (" + response.status + ")");

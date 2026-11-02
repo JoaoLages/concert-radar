@@ -75,7 +75,9 @@ def playlist_artists(
     spotify = Spotify(
         auth=_oauth(client_id, client_secret).refresh_access_token(refresh_token)[
             "access_token"
-        ]
+        ],
+        # On a rate limit Spotify can ask for hours of waiting, which the client would honour; fail instead.
+        status_retries=0,
     )
     user_id = _Owner.model_validate(spotify.current_user()).id
     artists: dict[str, str] = {}
