@@ -13,8 +13,9 @@ Log in with Spotify on the page to see only the artists you **follow on Spotify*
 | Portugal | [BOL](https://www.bol.pt) | Artist name in the event title |
 | Portugal | [Ticketline](https://www.ticketline.pt) | Artist name in the event title |
 | Spain | [La Ganzúa](https://www.laganzua.net) | Performer name |
+| Portugal | [MEO Arena](https://arena.meo.pt/agenda-completa) | Artist name in the event title |
 
-Portuguese ticketing is split by venue and each site holds its own shows, so no single site covers everything. Not covered: Blueticket (which sells many MEO Arena shows), See Tickets, Bandsintown, DICE and Shotgun, which block automated access.
+Portuguese ticketing is split by venue and each site holds its own shows, so no single site covers everything. Not covered: Blueticket, except for MEO Arena shows, which the venue's own page lists; See Tickets, Bandsintown, DICE and Shotgun, which block automated access.
 
 Matching by title is a heuristic. It skips tribute shows, and a short name like "Miguel" only matches when it stands alone in its part of the title, so it won't match "Miguel Araújo". Expect the odd false match, especially when two acts share a name.
 

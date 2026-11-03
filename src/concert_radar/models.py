@@ -13,6 +13,7 @@ class Source(StrEnum):
     BOL = "BOL"
     TICKETLINE = "Ticketline"
     LA_GANZUA = "La Ganzúa"
+    MEO_ARENA = "MEO Arena"
 
 
 class Listing(BaseModel):

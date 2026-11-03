@@ -22,7 +22,7 @@ from concert_radar.models import (
     Source,
 )
 from concert_radar.shows import show_key, shows_from
-from concert_radar.sources import bol, laganzua, ticketline
+from concert_radar.sources import bol, laganzua, meo_arena, ticketline
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ def _fetch_listings(
                 client, today, ticketline_months
             ),
             Source.LA_GANZUA: lambda: laganzua.listings(client, today),
+            Source.MEO_ARENA: lambda: meo_arena.listings(client),
         }
         worked: dict[Source, list[Listing]] = {}
         for source, fetch in fetchers.items():
