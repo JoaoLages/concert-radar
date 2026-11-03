@@ -14,7 +14,10 @@ class Source(StrEnum):
     TICKETLINE = "Ticketline"
     LA_GANZUA = "La Ganzúa"
     MEO_ARENA = "MEO Arena"
+    CAMPO_PEQUENO = "Campo Pequeno"
+    FORUM_BRAGA = "Forum Braga"
     SUPER_BOCK_ARENA = "Super Bock Arena"
+    COLISEU_PORTO = "Coliseu Porto"
     LAV = "LAV"
 
 

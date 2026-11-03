@@ -1,0 +1,47 @@
+{
+ "data": {
+  "events": {
+   "nodes": [
+    {
+     "id": "1",
+     "name": "Already happened",
+     "startDate": "2026-11-06T21:00:00.000Z",
+     "slug": "20261106-already-happened",
+     "state": "ACTIVE",
+     "ticketsSeller": "TICKETLINE",
+     "ticketsUrl": "x",
+     "category": {
+      "id": "9",
+      "name": "Música"
+     }
+    },
+    {
+     "id": "2",
+     "name": "Late show",
+     "startDate": "2026-11-08T00:30:00.000Z",
+     "slug": "20261107-late-show",
+     "state": "ACTIVE",
+     "ticketsSeller": "BLUETICKET",
+     "ticketsUrl": "y",
+     "category": {
+      "id": "9",
+      "name": "Música"
+     }
+    },
+    {
+     "id": "3",
+     "name": "Called off",
+     "startDate": "2026-12-01T21:00:00.000Z",
+     "slug": "20261201-called-off",
+     "state": "CANCELLED",
+     "ticketsSeller": "",
+     "ticketsUrl": "",
+     "category": {
+      "id": "9",
+      "name": "Música"
+     }
+    }
+   ]
+  }
+ }
+}

@@ -48,7 +48,10 @@ def test_failed_source_is_skipped_and_its_shows_stay_remembered(
         cli,
         "_fetch_listings",
         lambda *_: {
-            Source.TICKETLINE: [_listing(Source.TICKETLINE, "CAPITÃO FAUSTO", upcoming)]
+            Source.TICKETLINE: [
+                _listing(Source.TICKETLINE, "CAPITÃO FAUSTO", upcoming),
+                _listing(Source.TICKETLINE, "PROFJAM", date(2020, 1, 1)),
+            ]
         },
     )
 

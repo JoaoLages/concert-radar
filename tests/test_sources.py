@@ -7,10 +7,11 @@ import pytest
 from concert_radar.models import Country, Listing, Source
 from concert_radar.sources import (
     bol,
+    coliseu_porto,
     events_calendar,
     laganzua,
-    meo_arena,
     ticketline,
+    venue_pages,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -68,8 +69,9 @@ def test_laganzua_skips_past_events() -> None:
     assert laganzua.listings(_client("laganzua.html"), date(2027, 6, 1)) == []
 
 
-def test_meo_arena_lists_each_day_of_a_multi_day_show() -> None:
-    found = meo_arena.listings(_client("meo_arena.html"))
+def test_venue_page_lists_each_day_of_a_multi_day_show() -> None:
+    meo_arena = next(v for v in venue_pages.VENUES if v.source == Source.MEO_ARENA)
+    found = venue_pages.listings(_client("meo_arena.html"), meo_arena)
     assert [(listing.title, listing.starts_on) for listing in found] == [
         ("DURAN DURAN - FREE TO LOVE TOUR", date(2026, 11, 3)),
         ("BRYAN ADAMS - ROLL WITH THE PUNCHES", date(2026, 11, 20)),
@@ -129,4 +131,15 @@ def test_events_calendar_venue() -> None:
     assert [(listing.title, listing.starts_on, listing.venue) for listing in found] == [
         ("MAX COOPER", date(2026, 11, 5), venue.name),
         ("YOTTO | MISTY FEST – CANCELADO", date(2026, 11, 6), venue.name),
+    ]
+
+
+def test_coliseu_porto_keeps_upcoming_shows_in_lisbon_time() -> None:
+    found = coliseu_porto.listings(_client("coliseu_porto.json"), date(2026, 11, 7))
+    assert [(listing.title, listing.starts_on, listing.url) for listing in found] == [
+        (
+            "Late show",
+            date(2026, 11, 8),
+            "https://coliseu.pt/evento/20261107-late-show",
+        )
     ]

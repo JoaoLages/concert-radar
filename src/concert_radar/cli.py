@@ -24,10 +24,11 @@ from concert_radar.models import (
 from concert_radar.shows import show_key, shows_from
 from concert_radar.sources import (
     bol,
+    coliseu_porto,
     events_calendar,
     laganzua,
-    meo_arena,
     ticketline,
+    venue_pages,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,17 +53,26 @@ def _fetch_listings(
         follow_redirects=True,
         event_hooks={"request": [pause]},
     ) as client:
-        fetchers: dict[Source, Callable[[], list[Listing]]] = {
-            Source.BOL: lambda: bol.listings(client),
-            Source.TICKETLINE: lambda: ticketline.listings(
-                client, today, ticketline_months
-            ),
-            Source.LA_GANZUA: lambda: laganzua.listings(client, today),
-            Source.MEO_ARENA: lambda: meo_arena.listings(client),
-        } | {
-            venue.source: lambda venue=venue: events_calendar.listings(client, venue)
-            for venue in events_calendar.VENUES
-        }
+        fetchers: dict[Source, Callable[[], list[Listing]]] = (
+            {
+                Source.BOL: lambda: bol.listings(client),
+                Source.TICKETLINE: lambda: ticketline.listings(
+                    client, today, ticketline_months
+                ),
+                Source.LA_GANZUA: lambda: laganzua.listings(client, today),
+                Source.COLISEU_PORTO: lambda: coliseu_porto.listings(client, today),
+            }
+            | {
+                page.source: lambda page=page: venue_pages.listings(client, page)
+                for page in venue_pages.VENUES
+            }
+            | {
+                venue.source: lambda venue=venue: events_calendar.listings(
+                    client, venue
+                )
+                for venue in events_calendar.VENUES
+            }
+        )
         worked: dict[Source, list[Listing]] = {}
         for source, fetch in fetchers.items():
             try:

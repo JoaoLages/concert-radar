@@ -27,6 +27,9 @@ def shows_from(
     matcher = ArtistMatcher(artists.values())
     shows: dict[str, Show] = {}
     for listing in listings:
+        # Some sites keep listing an event that started in the past (a long exhibition, a run of shows).
+        if listing.starts_on < today:
+            continue
         for artist in matcher.artists_in(listing):
             key = show_key(artist, listing.starts_on)
             if key in shows:
