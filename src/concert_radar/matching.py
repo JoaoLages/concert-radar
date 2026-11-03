@@ -7,7 +7,8 @@ from concert_radar.models import Listing
 
 # Pieces that split an event title into its acts: "A | Tour", "A + B", "A - B", "A & B", ...
 _SEPARATOR = r"(?:[|:+&,/]|\s[-–—]\s)"
-_TRIBUTE = re.compile(r"tribut|\btrib\.")
+# Tribute nights aren't the artist, and cancelled shows aren't happening.
+_SKIPPED = re.compile(r"tribut|\btrib\.|cancelad")
 # A name this long, or with several words, is unlikely to be the start of someone else's name,
 # so it may be followed by free text ("ProfJam no Coliseu"). Shorter names must stand alone
 # in their part of the title, so "Miguel" doesn't match "Miguel Araújo".
@@ -45,7 +46,7 @@ class ArtistMatcher:
                 if n in self._by_name
             ]
         title = normalize(listing.title)
-        if _TRIBUTE.search(title):
+        if _SKIPPED.search(title):
             return []
         return [
             self._by_name[n]

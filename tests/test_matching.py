@@ -57,6 +57,7 @@ def _titled(title: str) -> Listing:
         ("COLDDAY | WORLD&#34;S NUMBER ONE COLDPLAY TRIBUTE", []),
         ("Tributo Pearl Jam + Alice In Chains - AC Marginália", []),
         ("&#34;Filomúsica&#34; - Gala Lírica", []),
+        ("PROFJAM | MISTY FEST – CANCELADO", []),
     ],
 )
 def test_title_matching(title: str, expected: list[str]) -> None:

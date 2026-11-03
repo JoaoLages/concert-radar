@@ -14,6 +14,7 @@ Log in with Spotify on the page to see only the artists you **follow on Spotify*
 | Portugal | [Ticketline](https://www.ticketline.pt) | Artist name in the event title |
 | Spain | [La Ganzúa](https://www.laganzua.net) | Performer name |
 | Portugal | [MEO Arena](https://arena.meo.pt/agenda-completa) | Artist name in the event title |
+| Portugal | [Super Bock Arena](https://www.superbockarena.pt/agenda/), [LAV](https://lisboaaovivo.com/agenda/) | Artist name in the event title |
 
 Portuguese ticketing is split by venue and each site holds its own shows, so no single site covers everything. Not covered: Blueticket, except for MEO Arena shows, which the venue's own page lists; See Tickets, Bandsintown, DICE and Shotgun, which block automated access.
 

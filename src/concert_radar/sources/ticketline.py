@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup, Tag
 from concert_radar.models import Country, Listing, Source
 
 _BASE_URL = "https://www.ticketline.pt"
+# The search shows an event with several dates or venues once, under its first date.
+_MULTIPLE_DATES_CLASS = "has_multiple_sessions"
 
 
 class _Category(IntEnum):
@@ -16,33 +18,58 @@ class _Category(IntEnum):
     FESTIVALS = 121
 
 
-def _text(item: Tag, prop: str) -> str:
+def _prop(item: Tag, prop: str) -> str:
+    """An item's schema.org property, given either as an attribute or as text."""
     found = item.select_one(f'[itemprop="{prop}"]')
     if not isinstance(found, Tag):
         raise TypeError(f"Ticketline event without {prop}: {item}")
-    return found.get_text(" ", strip=True)
+    if prop == "location":
+        # A session gives its venue as a nested schema.org Place with its own name.
+        place_name = found.select_one('[itemprop="name"]')
+        found = place_name if isinstance(place_name, Tag) else found
+    return str(found.get("content") or found.get_text(" ", strip=True))
 
 
-def _listing(item: Tag) -> Listing:
+def _listing(item: Tag, event: Listing | None = None) -> Listing:
+    """A search result, or one date of `event` (titled and, if it has no link of its own, linked like it)."""
     link = item.select_one('a[itemprop="url"]')
-    start = item.select_one('[itemprop="startDate"]')
-    if not isinstance(link, Tag) or not isinstance(start, Tag):
-        raise TypeError(f"Ticketline event without a link or date: {item}")
+    if not isinstance(link, Tag):
+        raise TypeError(f"Ticketline event without a link: {item}")
+    href = link.get("href")  # sessions that can't be bought (e.g. sold out) have none
+    if href:
+        url = _BASE_URL + str(href)
+    elif event:
+        url = event.url
+    else:
+        raise TypeError(f"Ticketline event without a link: {item}")
     return Listing(
         source=Source.TICKETLINE,
-        title=_text(item, "name"),
+        title=event.title if event else _prop(item, "name"),
         performers=[],
-        starts_on=date.fromisoformat(str(start["content"])),
-        venue=_text(item, "location"),
+        starts_on=date.fromisoformat(_prop(item, "startDate")[:10]),
+        venue=_prop(item, "location"),
         city="",
         country=Country.PORTUGAL,
-        url=_BASE_URL + str(link["href"]),
+        url=url,
     )
 
 
+def _dates_of(client: httpx.Client, event: Listing, today: date) -> list[Listing]:
+    """One listing per date and venue on the event's own page, under the event's title.
+    The page lists either separate events per city or sessions at one venue."""
+    response = client.get(event.url)
+    response.raise_for_status()
+    sessions = BeautifulSoup(response.text, "html.parser").select(
+        '#sessoes li[itemtype="http://schema.org/Event"]'
+    )
+    found = [_listing(session, event) for session in sessions]
+    return [listing for listing in found if listing.starts_on >= today] or [event]
+
+
 def listings(client: httpx.Client, today: date, months: int) -> list[Listing]:
-    """Events starting in the next `months` months; an event with several dates is listed once."""
+    """Events starting in the next `months` months, one per date and venue."""
     by_url: dict[str, Listing] = {}
+    several_dates: set[str] = set()
     for category in _Category:
         for offset in range(months):
             year, month_index = divmod(today.year * 12 + today.month - 1 + offset, 12)
@@ -66,6 +93,13 @@ def listings(client: httpx.Client, today: date, months: int) -> list[Listing]:
                     break
                 for item in items:
                     listing = _listing(item)
-                    by_url.setdefault(listing.url, listing)
+                    listing = by_url.setdefault(listing.url, listing)
+                    if _MULTIPLE_DATES_CLASS in item.get_attribute_list("class"):
+                        several_dates.add(listing.url)
                 page += 1
-    return list(by_url.values())
+    found: list[Listing] = []
+    for url, listing in by_url.items():
+        found += (
+            _dates_of(client, listing, today) if url in several_dates else [listing]
+        )
+    return found

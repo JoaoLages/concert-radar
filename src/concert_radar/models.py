@@ -14,6 +14,8 @@ class Source(StrEnum):
     TICKETLINE = "Ticketline"
     LA_GANZUA = "La Ganzúa"
     MEO_ARENA = "MEO Arena"
+    SUPER_BOCK_ARENA = "Super Bock Arena"
+    LAV = "LAV"
 
 
 class Listing(BaseModel):
