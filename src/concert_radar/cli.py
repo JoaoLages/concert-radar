@@ -26,6 +26,7 @@ from concert_radar.sources import (
     bol,
     coliseu_porto,
     events_calendar,
+    guimaraes,
     laganzua,
     ticketline,
     venue_pages,
@@ -61,6 +62,7 @@ def _fetch_listings(
                 ),
                 Source.LA_GANZUA: lambda: laganzua.listings(client, today),
                 Source.COLISEU_PORTO: lambda: coliseu_porto.listings(client, today),
+                Source.GUIMARAES: lambda: guimaraes.listings(client),
             }
             | {
                 page.source: lambda page=page: venue_pages.listings(client, page)

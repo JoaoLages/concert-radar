@@ -9,6 +9,7 @@ from concert_radar.sources import (
     bol,
     coliseu_porto,
     events_calendar,
+    guimaraes,
     laganzua,
     ticketline,
     venue_pages,
@@ -141,5 +142,24 @@ def test_coliseu_porto_keeps_upcoming_shows_in_lisbon_time() -> None:
             "Late show",
             date(2026, 11, 8),
             "https://coliseu.pt/evento/20261107-late-show",
+        )
+    ]
+
+
+def test_guimaraes_reads_events_from_the_sitemap() -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        fixture = (
+            "guimaraes_sitemap.xml"
+            if request.url.path.endswith(".xml")
+            else "guimaraes_event.html"
+        )
+        return httpx.Response(200, text=(FIXTURES / fixture).read_text())
+
+    found = guimaraes.listings(httpx.Client(transport=httpx.MockTransport(handle)))
+    assert [(listing.title, listing.starts_on, listing.url) for listing in found] == [
+        (
+            "A Primeira Depois da Ceia",
+            date(2026, 12, 26),
+            "https://multiusosdeguimaraes.pt/events/a-primeira-depois-da-ceia/",
         )
     ]

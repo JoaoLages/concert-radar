@@ -16,6 +16,7 @@ class Source(StrEnum):
     MEO_ARENA = "MEO Arena"
     CAMPO_PEQUENO = "Campo Pequeno"
     FORUM_BRAGA = "Forum Braga"
+    GUIMARAES = "Multiusos Guimarães"
     SUPER_BOCK_ARENA = "Super Bock Arena"
     COLISEU_PORTO = "Coliseu Porto"
     LAV = "LAV"
