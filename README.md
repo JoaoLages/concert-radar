@@ -13,7 +13,8 @@ Log in with Spotify on the page to see only the artists you **follow on Spotify*
 | Portugal | [BOL](https://www.bol.pt) | Artist name in the event title |
 | Portugal | [Ticketline](https://www.ticketline.pt) | Artist name in the event title |
 | Spain | [La Ganzúa](https://www.laganzua.net) | Performer name |
-| Portugal, Spain | Festival lineups: [NOS Alive](https://nosalive.com), [Sónar](https://sonar.es/en/programme/line-up) | Performer name, each act on its festival day (Sónar's first day, as it doesn't date acts) |
+| Portugal, Spain | Festival lineups: [NOS Alive](https://nosalive.com), [Primavera Sound Porto and Barcelona](https://www.primaverasound.com), [Sónar](https://sonar.es/en/programme/line-up) | Performer name, each act on its day (the festival's first day where the timetable isn't out) |
+| Portugal, Spain | [Sons em Trânsito](https://www.sonsemtransito.com/pt/agenda/atual/todos) (a booking agency's tour dates) | Performer name |
 | Portugal | Venues' own agendas: [MEO Arena](https://arena.meo.pt/agenda-completa), [Sagres Campo Pequeno](https://sagrescampopequeno.pt/pt/agenda), [Altice Forum Braga](https://www.forumbraga.com/Events), [Super Bock Arena](https://www.superbockarena.pt/agenda/), [Coliseu Porto Ageas](https://coliseu.pt/agenda), [Multiusos de Guimarães](https://multiusosdeguimaraes.pt/events/), [LAV](https://lisboaaovivo.com/agenda/) | Artist name in the event title |
 
 Portuguese ticketing is split by venue and each site holds its own shows, so no single site covers everything. Not covered: Blueticket, except for shows at the venues above, which their own agendas list; See Tickets, Bandsintown, DICE and Shotgun, which block automated access.

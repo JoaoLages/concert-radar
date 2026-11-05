@@ -12,6 +12,7 @@ from concert_radar.sources import (
     festivals,
     guimaraes,
     laganzua,
+    sons_em_transito,
     ticketline,
     venue_pages,
 )
@@ -193,3 +194,35 @@ def test_sonar_lists_each_act_on_the_first_day() -> None:
         (["Bonobo"], date(2027, 6, 17), "https://sonar.es/en/activity/bonobo"),
         (["Peggy Gou"], date(2027, 6, 17), "https://sonar.es/en/activity/peggy-gou"),
     ]
+
+
+def test_primavera_dates_acts_by_set_or_first_day() -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(
+                200, text=(FIXTURES / "primavera_page.html").read_text()
+            )
+        edition = "porto" if b"2027-porto" in request.content else "barcelona"
+        return httpx.Response(
+            200, text=(FIXTURES / f"primavera_{edition}.json").read_text()
+        )
+
+    found = festivals.primavera_sound(
+        httpx.Client(transport=httpx.MockTransport(handle))
+    )
+    assert [
+        (listing.performers, listing.city, listing.starts_on) for listing in found
+    ] == [
+        (["Metronomy"], "Porto", date(2027, 6, 10)),
+        (["Robyn"], "Barcelona", date(2027, 6, 4)),
+    ]
+
+
+def test_sons_em_transito_keeps_portugal_and_spain() -> None:
+    found = sons_em_transito.listings(
+        _client("sons_em_transito.html"), date(2026, 11, 5)
+    )
+    assert [
+        (listing.performers, listing.starts_on, listing.city, listing.venue)
+        for listing in found
+    ] == [(["António Zambujo"], date(2026, 11, 20), "Vila Real", "Teatro Vila Real")]

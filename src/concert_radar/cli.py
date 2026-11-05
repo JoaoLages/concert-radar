@@ -29,6 +29,7 @@ from concert_radar.sources import (
     festivals,
     guimaraes,
     laganzua,
+    sons_em_transito,
     ticketline,
     venue_pages,
 )
@@ -66,6 +67,10 @@ def _fetch_listings(
                 Source.GUIMARAES: lambda: guimaraes.listings(client),
                 Source.NOS_ALIVE: lambda: festivals.nos_alive(client, today),
                 Source.SONAR: lambda: festivals.sonar(client),
+                Source.PRIMAVERA_SOUND: lambda: festivals.primavera_sound(client),
+                Source.SONS_EM_TRANSITO: lambda: sons_em_transito.listings(
+                    client, today
+                ),
             }
             | {
                 page.source: lambda page=page: venue_pages.listings(client, page)

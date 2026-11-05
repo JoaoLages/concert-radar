@@ -22,6 +22,8 @@ class Source(StrEnum):
     LAV = "LAV"
     NOS_ALIVE = "NOS Alive"
     SONAR = "Sónar"
+    PRIMAVERA_SOUND = "Primavera Sound"
+    SONS_EM_TRANSITO = "Sons em Trânsito"
 
 
 class Listing(BaseModel):
