@@ -20,6 +20,8 @@ class Source(StrEnum):
     SUPER_BOCK_ARENA = "Super Bock Arena"
     COLISEU_PORTO = "Coliseu Porto"
     LAV = "LAV"
+    NOS_ALIVE = "NOS Alive"
+    SONAR = "Sónar"
 
 
 class Listing(BaseModel):

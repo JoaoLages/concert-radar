@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from concert_radar.sources.dates import portuguese_dates
+from concert_radar.sources.dates import next_portuguese_day, portuguese_dates
 
 
 @pytest.mark.parametrize(
@@ -31,3 +31,11 @@ def test_portuguese_dates(text: str, expected: list[date]) -> None:
 def test_unreadable_date_raises() -> None:
     with pytest.raises(ValueError, match="Date not understood"):
         portuguese_dates("em breve")
+
+
+@pytest.mark.parametrize(
+    ("today", "expected"),
+    [(date(2026, 11, 5), date(2027, 7, 8)), (date(2026, 7, 1), date(2026, 7, 8))],
+)
+def test_next_portuguese_day(today: date, expected: date) -> None:
+    assert next_portuguese_day("08 JUL . Palco Heineken", today) == expected

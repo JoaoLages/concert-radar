@@ -9,6 +9,7 @@ from concert_radar.sources import (
     bol,
     coliseu_porto,
     events_calendar,
+    festivals,
     guimaraes,
     laganzua,
     ticketline,
@@ -162,4 +163,33 @@ def test_guimaraes_reads_events_from_the_sitemap() -> None:
             date(2026, 12, 26),
             "https://multiusosdeguimaraes.pt/events/a-primeira-depois-da-ceia/",
         )
+    ]
+
+
+def test_nos_alive_lists_each_act_on_its_day() -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        day_one = request.url.path == "/primeiro-dia/"
+        return httpx.Response(
+            200,
+            text=(FIXTURES / "nos_alive_day.html").read_text()
+            if day_one
+            else "<html></html>",
+        )
+
+    found = festivals.nos_alive(
+        httpx.Client(transport=httpx.MockTransport(handle)), date(2026, 11, 5)
+    )
+    assert [(listing.performers, listing.starts_on) for listing in found] == [
+        (["The Strokes"], date(2027, 7, 8)),
+        (["Tom Misch"], date(2027, 7, 8)),
+    ]
+
+
+def test_sonar_lists_each_act_on_the_first_day() -> None:
+    found = festivals.sonar(_client("sonar.html"))
+    assert [
+        (listing.performers, listing.starts_on, listing.url) for listing in found
+    ] == [
+        (["Bonobo"], date(2027, 6, 17), "https://sonar.es/en/activity/bonobo"),
+        (["Peggy Gou"], date(2027, 6, 17), "https://sonar.es/en/activity/peggy-gou"),
     ]

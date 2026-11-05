@@ -40,3 +40,12 @@ def portuguese_dates(text: str) -> list[date]:
     return [
         date(int(year), _MONTHS.index(month) + 1, int(day)) for day, month, year in days
     ]
+
+
+def next_portuguese_day(text: str, today: date) -> date:
+    """A day and abbreviated month with no year, e.g. "08 JUL", as its next date from today."""
+    match = re.search(rf"\b(\d{{1,2}})\s+({'|'.join(_MONTHS)})", normalize(text))
+    if not match:
+        raise ValueError(f"Date not understood: {text!r}")
+    day = date(today.year, _MONTHS.index(match[2]) + 1, int(match[1]))
+    return day if day >= today else day.replace(year=today.year + 1)
