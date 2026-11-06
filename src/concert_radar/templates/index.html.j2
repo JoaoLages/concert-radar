@@ -229,10 +229,16 @@
     let response;
     for (let attempt = 0; attempt < 4; attempt++) {
       response = await fetch(API + path, { method, headers: { Authorization: "Bearer " + await accessToken() } });
-      if (response.status !== 429) break;
-      // Rate limited: wait as long as Spotify asks, unless that's too long to sit on a page.
-      const wait = Number(response.headers.get("Retry-After") || 2);
-      if (wait > 30) throw new Error("Spotify is limiting requests right now. Try again in " + Math.ceil(wait / 60) + " minutes.");
+      let wait;
+      if (response.status === 429) {
+        // Rate limited: wait as long as Spotify asks, unless that's too long to sit on a page.
+        wait = Number(response.headers.get("Retry-After") || 2);
+        if (wait > 30) throw new Error("Spotify is limiting requests right now. Try again in " + Math.ceil(wait / 60) + " minutes.");
+      } else if (response.status >= 500) {
+        wait = 2 ** attempt;  // Spotify's own errors are usually momentary: 1, 2, then 4 seconds
+      } else {
+        break;
+      }
       await new Promise(r => setTimeout(r, 1000 * wait));
     }
     if (response.status === 403) throw new Error("Spotify refused access. Only users added to the Spotify app (Dashboard → User Management) can log in.");
@@ -243,6 +249,7 @@
   // follows and unfollows made here keep the remembered list current in between.
   const FULL_READ_EVERY_MS = 60 * 60 * 1000;
   let user = null;
+  let loadFailed = false;  // the follow list couldn't be read; offer to retry instead of "Loading…"
   async function loadFollowed() {
     const map = new Map();
     let path = "/me/following?type=artist&limit=50";
@@ -286,6 +293,14 @@
     const button = document.createElement("button");
     if (followed) {
       el.append("Following " + followed.size + (followed.size === 1 ? " artist · " : " artists · "));
+      button.textContent = "Log out";
+      button.onclick = logout;
+    } else if (store.get("refresh") && loadFailed) {
+      el.append("Couldn't load your follows \u00b7 ");
+      const retry = document.createElement("button");
+      retry.textContent = "Retry";
+      retry.onclick = startSession;
+      el.append(retry, " ");
       button.textContent = "Log out";
       button.onclick = logout;
     } else if (store.get("refresh")) {
@@ -485,7 +500,9 @@
     render();
   }));
 
-  (async () => {
+  async function startSession() {
+    loadFailed = false;
+    notice("");
     try {
       await finishLoginRedirect();
       if (store.get("refresh")) {
@@ -504,10 +521,12 @@
       }
     } catch (error) {
       if (!store.get("refresh")) followed = null;
+      loadFailed = !followed;
       notice(error.message);
     }
     render();
-  })();
+  }
+  startSession();
 </script>
 </body>
 </html>
