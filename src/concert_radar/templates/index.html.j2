@@ -67,7 +67,8 @@
                    cursor: pointer; text-decoration: underline; }
   .row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); cursor: pointer; }
   .row input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
-  .row .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .row { flex-wrap: wrap; row-gap: 4px; }
+  .row .name { flex: 1 1 8em; min-width: 8em; overflow-wrap: anywhere; }
   .count { font-size: 13px; white-space: nowrap; }
   .notice { background: var(--chip); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
   .empty { color: var(--muted); padding: 24px 0; }
@@ -383,7 +384,7 @@
       count.className = "count";
       count.textContent = countText(id);
       row.append(box, name, count);
-      if (tab === "following") {
+      if (tab === "following" && RELATED.get(id)) {
         const toggle = document.createElement("button");
         toggle.className = "related-toggle";
         toggle.textContent = "+ related events";
