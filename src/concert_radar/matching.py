@@ -3,12 +3,16 @@ import re
 import unicodedata
 from collections.abc import Iterable
 
-from concert_radar.models import Listing
+from concert_radar.models import Listing, MatchKind
 
-# Pieces that split an event title into its acts: "A | Tour", "A + B", "A - B", "A & B", ...
-_SEPARATOR = r"(?:[|:+&,/]|\s[-–—]\s)"
-# Tribute nights aren't the artist, and cancelled shows aren't happening.
-_SKIPPED = re.compile(r"tribut|\btrib\.|cancelad")
+# Pieces that split an event title into its acts: "A | Tour", "A + B", "A - B", "A & B", "A e B", ...
+_SEPARATOR = r"(?:[|:+&,/]|\s[-–—]\s|\se\s)"
+_CANCELLED = re.compile(r"cancelad")
+# Words that mark a show as about an artist rather than by them: tributes, covers, orchestral takes.
+_RELATED_WORDS = re.compile(
+    r"tribut|\btrib\.|\bexperience\b|symphon|sinfoni|for solo piano|the music of|"
+    r"a musica de|cancoes de|homenagem|revisita"
+)
 # A name this long, or with several words, is unlikely to be the start of someone else's name,
 # so it may be followed by free text ("ProfJam no Coliseu"). Shorter names must stand alone
 # in their part of the title, so "Miguel" doesn't match "Miguel Araújo".
@@ -31,6 +35,12 @@ class ArtistMatcher:
         self._title_patterns = {
             name: self._title_pattern(name) for name in self._by_name
         }
+        # Distinctive names are also recognised mid-title ("THE WORLD OF HANS ZIMMER"), as related.
+        self._anywhere_patterns = {
+            name: re.compile(rf"(?<!\w){re.escape(name)}(?!\w)")
+            for name in self._by_name
+            if " " in name or len(name) >= _DISTINCTIVE_LENGTH
+        }
 
     @staticmethod
     def _title_pattern(name: str) -> re.Pattern[str]:
@@ -38,18 +48,26 @@ class ArtistMatcher:
         ending = r"(?!\w)" if distinctive else rf"(?=\s*(?:$|{_SEPARATOR}))"
         return re.compile(rf"(?:^|{_SEPARATOR})\s*{re.escape(name)}{ending}")
 
-    def artists_in(self, listing: Listing) -> list[str]:
+    def artists_in(self, listing: Listing) -> dict[str, MatchKind]:
+        """The artists a listing is for, each as playing it or only related to it."""
         if listing.performers:
-            return [
-                self._by_name[n]
+            return {
+                self._by_name[n]: MatchKind.ARTIST
                 for n in map(normalize, listing.performers)
                 if n in self._by_name
-            ]
+            }
         title = normalize(listing.title)
-        if _SKIPPED.search(title):
-            return []
-        return [
-            self._by_name[n]
-            for n, pattern in self._title_patterns.items()
-            if pattern.search(title)
-        ]
+        if _CANCELLED.search(title):
+            return {}
+        about_someone = bool(_RELATED_WORDS.search(title))
+        found: dict[str, MatchKind] = {}
+        for name, artist in self._by_name.items():
+            if name not in title:  # cheap check before the regexes
+                continue
+            if self._title_patterns[name].search(title):
+                found[artist] = MatchKind.RELATED if about_someone else MatchKind.ARTIST
+            elif name in self._anywhere_patterns and self._anywhere_patterns[
+                name
+            ].search(title):
+                found[artist] = MatchKind.RELATED
+        return found

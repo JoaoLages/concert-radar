@@ -1,10 +1,12 @@
 """Reads schema.org events embedded as JSON-LD in a listings page."""
 
+import html
 import json
 from datetime import date
+from typing import Annotated
 
 from bs4 import BeautifulSoup
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 
 class _Schema(BaseModel):
@@ -25,7 +27,9 @@ class Performer(_Schema):
 
 
 class Event(_Schema):
-    name: str
+    name: Annotated[str, AfterValidator(html.unescape)] = Field(
+        description="Some sites leave HTML entities in it, e.g. '&#34;'."
+    )
     url: str
     start: str = Field(
         alias="startDate",

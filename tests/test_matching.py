@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from concert_radar.matching import ArtistMatcher
-from concert_radar.models import Country, Listing, Source
+from concert_radar.models import Country, Listing, MatchKind, Source
 
 # Real BOL and Ticketline titles, against artists from a real set of playlists.
 ARTISTS = [
@@ -17,6 +17,7 @@ ARTISTS = [
     "Genesis",
     "Coldplay",
     "Ana Bacalhau",
+    "António Zambujo",
     "Steve Hackett",
     "Mão Morta",
     "グラハム・ブルバード",
@@ -38,29 +39,39 @@ def _titled(title: str) -> Listing:
     )
 
 
+A, R = MatchKind.ARTIST, MatchKind.RELATED
+
+
 @pytest.mark.parametrize(
     ("title", "expected"),
     [
-        ("PROFJAM NO COLISEU", ["ProfJam"]),
-        ("Capitão Fausto Têm os Dias Contados: 10 anos", ["Capitão Fausto"]),
-        ("CAPITÃO FAUSTO | TÊM OS DIAS CONTADOS: 10 ANOS", ["Capitão Fausto"]),
-        ("TOY | 50 ANOS DE CARREIRA", ["Toy"]),
-        ("GNR | IN VIVO", ["GNR"]),
-        ("Ana Bacalhau", ["Ana Bacalhau"]),
-        ("AMON AMARTH | THE ALLFATHER AWAKENS", ["Amon Amarth"]),
-        ("Steve Hackett-The Best of Genesis&Solo Gems-2027", ["Steve Hackett"]),
-        ("MANIFESTUM Mão Morta Redux e Pedro Serrazina", []),
-        ("ANTÓNIO ZAMBUJO MIGUEL ARAÚJO | 10 ANOS DEPOIS", []),
-        ("Miguel Araújo", []),
-        ("LUAN SANTANA – REGISTRO HISTÓRICO", []),
-        ("Jazz nas Adegas | Feel Good Band | Quinta João Clara | 17H00", []),
-        ("COLDDAY | WORLD&#34;S NUMBER ONE COLDPLAY TRIBUTE", []),
-        ("Tributo Pearl Jam + Alice In Chains - AC Marginália", []),
-        ("&#34;Filomúsica&#34; - Gala Lírica", []),
-        ("PROFJAM | MISTY FEST – CANCELADO", []),
+        ("PROFJAM NO COLISEU", {"ProfJam": A}),
+        ("Capitão Fausto Têm os Dias Contados: 10 anos", {"Capitão Fausto": A}),
+        ("CAPITÃO FAUSTO | TÊM OS DIAS CONTADOS: 10 ANOS", {"Capitão Fausto": A}),
+        ("TOY | 50 ANOS DE CARREIRA", {"Toy": A}),
+        ("GNR | IN VIVO", {"GNR": A}),
+        ("Ana Bacalhau", {"Ana Bacalhau": A}),
+        ("AMON AMARTH | THE ALLFATHER AWAKENS", {"Amon Amarth": A}),
+        # The headliner plays; another distinctive name mid-title is only related.
+        (
+            "Steve Hackett-The Best of Genesis&Solo Gems-2027",
+            {"Steve Hackett": A, "Genesis": R},
+        ),
+        ("MANIFESTUM Mão Morta Redux e Pedro Serrazina", {"Mão Morta": R}),
+        # Short names only count where they stand alone.
+        ("ANTÓNIO ZAMBUJO MIGUEL ARAÚJO | 10 ANOS DEPOIS", {"António Zambujo": A}),
+        ("Miguel Araújo", {}),
+        ("Jazz nas Adegas | Feel Good Band | Quinta João Clara | 17H00", {}),
+        ("LUAN SANTANA – REGISTRO HISTÓRICO", {"Santana": R}),
+        ("COLDDAY | WORLD&#34;S NUMBER ONE COLDPLAY TRIBUTE", {"Coldplay": R}),
+        ("THE BUZZ LOVERS | GENESIS EXPERIENCE", {"Genesis": R}),
+        ("Tributo Pearl Jam + Alice In Chains - AC Marginália", {}),
+        ("Miguel Araújo e António Zambujo", {"António Zambujo": A}),
+        ("&#34;Filomúsica&#34; - Gala Lírica", {}),
+        ("PROFJAM | MISTY FEST – CANCELADO", {}),
     ],
 )
-def test_title_matching(title: str, expected: list[str]) -> None:
+def test_title_matching(title: str, expected: dict[str, MatchKind]) -> None:
     assert ArtistMatcher(ARTISTS).artists_in(_titled(title)) == expected
 
 
@@ -68,4 +79,4 @@ def test_performer_matching_is_exact() -> None:
     listing = _titled("anything").model_copy(
         update={"performers": ["Amon Amarth", "Santana Jr"]}
     )
-    assert ArtistMatcher(ARTISTS).artists_in(listing) == ["Amon Amarth"]
+    assert ArtistMatcher(ARTISTS).artists_in(listing) == {"Amon Amarth": A}

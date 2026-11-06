@@ -46,7 +46,12 @@
           border-top: 1px solid var(--line); }
   .date { font-variant-numeric: tabular-nums; color: var(--muted); }
   .date b { display: block; color: var(--fg); font-size: 18px; }
-  .artist { font-weight: 600; }
+  .title { font-weight: 600; }
+  .match { font-size: 13px; color: var(--muted); }
+  .related { border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; font-size: 11px; }
+  .related-toggle { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--line);
+                    border-radius: 999px; padding: 1px 8px; cursor: pointer; white-space: nowrap; }
+  .related-toggle[aria-pressed="true"] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
   .new { background: var(--new-bg); color: var(--new-fg); font-size: 11px; font-weight: 600;
          border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
   .where, .count { color: var(--muted); }
@@ -98,11 +103,12 @@
       {% set is_new = (today - show.first_seen).days < new_days %}
       {% if month != ns.month %}<h2 id="month-{{ show.starts_on.strftime('%Y-%m') }}">{{ month }}</h2>{% set ns.month = month %}{% endif %}
       <div class="show" data-country="{{ show.country.value }}" data-new="{{ is_new }}"
-           data-ids="{{ show.artist_ids | join(' ') }}"
-           data-text="{{ (show.artist ~ ' ' ~ show.venue ~ ' ' ~ show.city) | lower }}">
+           data-ids="{{ show.artist_ids | join(' ') }}" data-kind="{{ show.kind.value }}"
+           data-text="{{ (show.titles | join(' ') ~ ' ' ~ show.artist ~ ' ' ~ show.venue ~ ' ' ~ show.city) | lower }}">
         <div class="date"><b>{{ show.starts_on.day }}</b>{{ show.starts_on.strftime("%a") }}</div>
         <div>
-          <span class="artist">{{ show.artist }}</span>{% if is_new %}<span class="new">NEW</span>{% endif %}<button class="unfollow" hidden>Unfollow</button>
+          <span class="title">{{ show.titles | join(" · ") }}</span>{% if is_new %}<span class="new">NEW</span>{% endif %}
+          <div class="match"><span class="artist">{{ show.artist }}</span>{% if show.kind.value == "related" %}<span class="related" title="A tribute, cover or other show about the artist">related</span>{% endif %}<button class="unfollow" hidden>Unfollow</button></div>
           <div class="where">{{ show.venue }}{% if show.city %}, {{ show.city }}{% endif %} · {{ show.country.name.title() }}</div>
           <div class="links">{% for source, url in show.links.items() %}<a href="{{ url }}" rel="noopener">{{ source.value }}</a>{% endfor %}</div>
         </div>
@@ -142,6 +148,7 @@
   const DATA = JSON.parse(document.getElementById("radar-data").textContent);
   const LOGIN = DATA.login;
   const UPCOMING = new Map(DATA.artists.map(a => [a.id, a.upcoming]));
+  const RELATED = new Map(DATA.artists.map(a => [a.id, a.related]));
   const NAMES = new Map(DATA.artists.map(a => [a.id, a.name]));
   const API = "https://api.spotify.com/v1";
 
@@ -181,7 +188,7 @@
     });
   }
   function logout() {
-    ["access", "expires", "refresh", "verifier", "followed"].forEach(store.del);
+    ["access", "expires", "refresh", "verifier"].forEach(store.del);
     followed = null;
     render();
   }
@@ -194,7 +201,7 @@
     if (!response.ok) {
       // A refresh token stops working when it's revoked or replaced (e.g. by another tab); start over.
       if (params.grant_type === "refresh_token") {
-        ["access", "expires", "refresh", "followed"].forEach(store.del);
+        ["access", "expires", "refresh"].forEach(store.del);
         throw new Error("Your Spotify login expired. Log in again.");
       }
       throw new Error("Spotify login failed (" + response.status + ")");
@@ -232,6 +239,10 @@
     if (!response.ok) throw new Error("Spotify request failed (" + response.status + ")");
     return response.status === 204 ? null : response.json().catch(() => null);
   }
+  // A full read takes Spotify one request per 50 artists, one after another, so it's done at most hourly;
+  // follows and unfollows made here keep the remembered list current in between.
+  const FULL_READ_EVERY_MS = 60 * 60 * 1000;
+  let user = null;
   async function loadFollowed() {
     const map = new Map();
     let path = "/me/following?type=artist&limit=50";
@@ -241,22 +252,31 @@
       path = page.next ? page.next.replace(API, "") : null;
     }
     followed = map;
+    store.set("followed_read_at", String(Date.now()));
     saveFollowed();
   }
-  // Remembered so the page can show your follows instantly next time, while it refreshes them.
+  // Remembered so the page shows your follows instantly on every visit and login.
   function saveFollowed() {
     store.set("followed", JSON.stringify([...followed]));
+    store.set("followed_user", user);
   }
   // Spotify takes at most 40 artists per follow or unfollow request.
   async function setFollowing(ids, follow, progress) {
-    for (let i = 0; i < ids.length; i += 40) {
-      const batch = ids.slice(i, i + 40);
-      await spotify(follow ? "PUT" : "DELETE",
-        "/me/library?uris=" + encodeURIComponent(batch.map(id => "spotify:artist:" + id).join(",")));
-      batch.forEach(id => follow ? followed.set(id, NAMES.get(id)) : followed.delete(id));
-      saveFollowed();
-      progress(Math.min(i + 40, ids.length));
-    }
+    const batches = [];
+    for (let i = 0; i < ids.length; i += 40) batches.push(ids.slice(i, i + 40));
+    let done = 0;
+    // Four requests at a time: much faster than one by one, and gentle enough on Spotify's limits.
+    await Promise.all(Array.from({ length: Math.min(4, batches.length) }, async () => {
+      while (batches.length) {
+        const batch = batches.shift();
+        await spotify(follow ? "PUT" : "DELETE",
+          "/me/library?uris=" + encodeURIComponent(batch.map(id => "spotify:artist:" + id).join(",")));
+        batch.forEach(id => follow ? followed.set(id, NAMES.get(id)) : followed.delete(id));
+        saveFollowed();
+        done += batch.length;
+        progress(done);
+      }
+    }));
   }
 
   // --- Rendering ---
@@ -295,6 +315,21 @@
     },
   };
   const selected = { following: new Set(), add: new Set() };
+  // Artists whose tributes, covers and other related shows you also want; kept in this browser only.
+  let relatedOn = new Set();
+  try { relatedOn = new Set(JSON.parse(store.get("related") || "[]")); } catch {}
+  function setRelated(id, on) {
+    on ? relatedOn.add(id) : relatedOn.delete(id);
+    store.set("related", JSON.stringify([...relatedOn]));
+    applyShowFilters();
+  }
+  function countText(id) {
+    const upcoming = UPCOMING.get(id) || 0, related = RELATED.get(id) || 0;
+    const parts = [];
+    if (upcoming) parts.push(upcoming + (upcoming === 1 ? " upcoming show" : " upcoming shows"));
+    if (related) parts.push(related + " related");
+    return parts.join(" · ") || "no shows found";
+  }
 
   function renderChecklist(tab) {
     const config = CHECKLISTS[tab];
@@ -331,9 +366,21 @@
       name.textContent = NAMES.get(id);
       const count = document.createElement("span");
       count.className = "count";
-      const upcoming = UPCOMING.get(id) || 0;
-      count.textContent = upcoming ? upcoming + (upcoming === 1 ? " upcoming show" : " upcoming shows") : "no shows found";
+      count.textContent = countText(id);
       row.append(box, name, count);
+      if (tab === "following") {
+        const toggle = document.createElement("button");
+        toggle.className = "related-toggle";
+        toggle.textContent = "+ related events";
+        toggle.title = "Also show tributes, covers and other shows about this artist";
+        toggle.setAttribute("aria-pressed", relatedOn.has(id));
+        toggle.onclick = event => {
+          event.preventDefault();  // the row is a label; don't tick its checkbox
+          setRelated(id, !relatedOn.has(id));
+          toggle.setAttribute("aria-pressed", relatedOn.has(id));
+        };
+        row.append(toggle);
+      }
       return row;
     }));
     section.querySelectorAll("[data-select]").forEach(button => {
@@ -366,7 +413,8 @@
     const query = showSearch.value.trim().toLowerCase();
     let visible = 0;
     document.querySelectorAll(".show").forEach(row => {
-      const show = (!followed || row.dataset.ids.split(" ").some(id => followed.has(id)))
+      const ids = row.dataset.ids.split(" ");
+      const show = (!followed || ids.some(id => followed.has(id) && (row.dataset.kind === "artist" || relatedOn.has(id))))
         && (!filters.country || row.dataset.country === filters.country)
         && (!filters.onlyNew || row.dataset.new === "True")
         && (!query || row.dataset.text.includes(query));
@@ -440,12 +488,20 @@
   (async () => {
     try {
       await finishLoginRedirect();
-      try {
-        const cached = store.get("followed");
-        if (cached && store.get("refresh")) followed = new Map(JSON.parse(cached));
-      } catch {}
-      render();
-      if (store.get("refresh")) await loadFollowed();
+      if (store.get("refresh")) {
+        try {
+          const cached = store.get("followed");
+          if (cached) followed = new Map(JSON.parse(cached));
+        } catch {}
+        render();
+        user = (await spotify("GET", "/me")).id;
+        const stale = Date.now() - Number(store.get("followed_read_at") || 0) > FULL_READ_EVERY_MS;
+        if (!followed || store.get("followed_user") !== user || stale) {
+          if (store.get("followed_user") !== user) followed = null;
+          render();
+          await loadFollowed();
+        }
+      }
     } catch (error) {
       if (!store.get("refresh")) followed = null;
       notice(error.message);

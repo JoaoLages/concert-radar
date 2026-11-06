@@ -15,6 +15,7 @@ from concert_radar.matching import normalize
 from concert_radar.models import (
     Country,
     Listing,
+    MatchKind,
     PageData,
     PageLogin,
     PlaylistArtist,
@@ -139,7 +140,12 @@ def build(
         today,
     )
     logger.info("Matched %d shows", len(shows))
-    upcoming = Counter(artist_id for show in shows for artist_id in show.artist_ids)
+    upcoming = {
+        kind: Counter(
+            artist_id for s in shows if s.kind == kind for artist_id in s.artist_ids
+        )
+        for kind in MatchKind
+    }
     # Upcoming shows stay remembered while their source is down, so they aren't "new" again on its return.
     state = RadarState(
         first_seen={
@@ -168,7 +174,10 @@ def build(
                 artists=sorted(
                     (
                         PlaylistArtist(
-                            id=artist_id, name=name, upcoming=upcoming[artist_id]
+                            id=artist_id,
+                            name=name,
+                            upcoming=upcoming[MatchKind.ARTIST][artist_id],
+                            related=upcoming[MatchKind.RELATED][artist_id],
                         )
                         for artist_id, name in artists.items()
                     ),

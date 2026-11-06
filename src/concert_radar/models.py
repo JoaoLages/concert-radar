@@ -60,10 +60,21 @@ class RadarState(BaseModel):
     )
 
 
-class Show(BaseModel):
-    """A playlist artist playing on a given day, merged across every site that lists it."""
+class MatchKind(StrEnum):
+    ARTIST = "artist"  # the artist is playing
+    RELATED = "related"  # a tribute, cover or other show about the artist
 
+
+class Show(BaseModel):
+    """A playlist artist's show on a given day, merged across every site that lists it."""
+
+    titles: list[str] = Field(
+        description="Each distinct title the sites give the event."
+    )
     artist: str
+    kind: MatchKind = Field(
+        description="ARTIST if any site lists the artist as playing."
+    )
     artist_ids: list[str] = Field(
         description="Spotify IDs of the playlist artists with this name; usually one."
     )
@@ -80,7 +91,10 @@ class PlaylistArtist(BaseModel):
 
     id: str = Field(description="Spotify artist ID.")
     name: str
-    upcoming: int = Field(description="How many upcoming shows were found for them.")
+    upcoming: int = Field(description="How many upcoming shows they play.")
+    related: int = Field(
+        description="How many upcoming tributes and other related shows."
+    )
 
 
 class PageLogin(BaseModel):
